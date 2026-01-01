@@ -951,6 +951,7 @@ async function renderOrdersPage() {
           </select>
         </td>
         <td class="px-3 py-2 text-right">
+          <button data-action="view-order" data-id="${o.id}" class="focus-outline text-[11px] px-2 py-[2px] rounded-full bg-white text-slate-600 border border-slate-300 hover:border-blue-500 hover:text-blue-600 mr-1">View</button>
           <button data-action="delete-order" data-id="${o.id}" class="focus-outline text-[11px] px-2 py-[2px] rounded-full bg-white text-slate-600 border border-slate-300 hover:border-red-500 hover:text-red-600">Delete</button>
         </td>
       </tr>
@@ -989,6 +990,26 @@ async function renderOrdersPage() {
         </div>
       </div>
     </section>
+
+    <!-- Order Details Modal -->
+    <div id="order-details-modal" class="hidden fixed inset-0 flex items-center justify-center z-50">
+      <div class="modal-backdrop absolute inset-0 bg-black/30 backdrop-blur-sm" id="order-modal-backdrop"></div>
+      <div class="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl mx-4 flex flex-col">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <div>
+              <h3 class="text-base sm:text-lg font-semibold text-slate-800">Order Details</h3>
+              <p class="text-[11px] sm:text-xs text-slate-500" id="order-modal-id">ID: ...</p>
+            </div>
+            <button type="button" id="btn-close-order-modal" class="focus-outline text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+        </div>
+        <div class="p-5 flex flex-col gap-5" id="order-modal-content">
+            <!-- Content will be injected here -->
+        </div>
+        <div class="flex justify-end px-5 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+            <button type="button" id="btn-done-order" class="px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 text-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-200">Close</button>
+        </div>
+      </div>
+    </div>
     `;
 
   document.getElementById('orders-tbody')?.addEventListener('change', async (e) => {
@@ -1003,15 +1024,90 @@ async function renderOrdersPage() {
   });
 
   document.getElementById('orders-tbody')?.addEventListener('click', async (e) => {
-    const btn = e.target.closest('button[data-action="delete-order"]');
+    const btn = e.target.closest('button[data-action]');
     if (!btn) return;
 
-    if (confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
-      const result = await DatabaseService.deleteOrder(btn.dataset.id);
-      if (result.success) {
-        renderOrdersPage();
-      } else {
-        alert('Failed to delete order: ' + result.error);
+    const action = btn.dataset.action;
+    const id = btn.dataset.id;
+
+    if (action === 'view-order') {
+      const order = orders.find(o => o.id === id);
+      if (!order) return;
+
+      const modal = document.getElementById('order-details-modal');
+      const modalId = document.getElementById('order-modal-id');
+      const modalContent = document.getElementById('order-modal-content');
+
+      // Handlers
+      const closeModal = () => modal.classList.add('hidden');
+      document.getElementById('btn-close-order-modal').onclick = closeModal;
+      document.getElementById('btn-done-order').onclick = closeModal;
+      document.getElementById('order-modal-backdrop').onclick = closeModal;
+
+      modalId.textContent = `Order #${order.id.substring(0, 8)}`;
+
+      const itemsHtml = (order.items || []).map(item => `
+          <div class="flex items-start gap-3 py-2 border-b border-slate-50 last:border-0">
+              <div class="flex-1">
+                  <p class="text-sm font-medium text-slate-800">${item.title || 'Product'}</p>
+                  <p class="text-xs text-slate-500">Qty: ${item.quantity} × ${formatCurrency(item.unit_price)}</p>
+              </div>
+              <div class="text-sm font-medium text-slate-800">${formatCurrency(item.subtotal)}</div>
+          </div>
+      `).join('');
+
+      const subtotal = calculateSubtotal(order.total_amount);
+      const tax = calculateTax(subtotal);
+
+      modalContent.innerHTML = `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Customer Info</h4>
+                  <p class="text-sm font-medium text-slate-800">${order.profile?.full_name || 'Guest'}</p>
+                  <p class="text-xs text-slate-600">${order.profile?.email || 'N/A'}</p>
+                  <p class="text-xs text-slate-600">${order.profile?.phone || 'N/A'}</p>
+              </div>
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Shipping Details</h4>
+                  <p class="text-sm text-slate-700">${order.shipping_address?.address || 'N/A'}</p>
+                  <p class="text-xs text-slate-600">${order.shipping_address?.city || ''}, ${order.shipping_address?.country || ''}</p>
+              </div>
+          </div>
+          
+          <div class="border rounded-xl border-slate-200 overflow-hidden">
+              <div class="bg-slate-50 px-4 py-2 border-b border-slate-200">
+                  <h4 class="text-xs font-semibold text-slate-600">Order Items</h4>
+              </div>
+              <div class="px-4 max-h-[200px] overflow-y-auto">
+                  ${itemsHtml}
+              </div>
+              <div class="bg-slate-50 px-4 py-3 border-t border-slate-200 flex flex-col gap-1">
+                  <div class="flex justify-between text-xs text-slate-500">
+                      <span>Subtotal</span>
+                      <span>${formatCurrency(subtotal)}</span>
+                  </div>
+                  <div class="flex justify-between text-xs text-slate-500">
+                      <span>Tax (14%)</span>
+                      <span>${formatCurrency(tax)}</span>
+                  </div>
+                  <div class="flex justify-between text-sm font-bold text-slate-800 mt-1 pt-1 border-t border-slate-200">
+                      <span>Total</span>
+                      <span>${formatCurrency(order.total_amount)}</span>
+                  </div>
+              </div>
+          </div>
+      `;
+
+      modal.classList.remove('hidden');
+
+    } else if (action === 'delete-order') {
+      if (confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
+        const result = await DatabaseService.deleteOrder(id);
+        if (result.success) {
+          renderOrdersPage();
+        } else {
+          alert('Failed to delete order: ' + result.error);
+        }
       }
     }
   });
@@ -1341,6 +1437,7 @@ async function renderBookingsPage() {
             <option value="completed" ${b.status === "completed" ? "selected" : ""}>Completed</option>
             <option value="cancelled" ${b.status === "cancelled" ? "selected" : ""}>Cancelled</option>
           </select>
+          <button data-action="view-booking" data-id="${b.id}" class="focus-outline text-[10px] px-2 py-[2px] rounded-full bg-white text-slate-700 border border-slate-300 hover:border-blue-500 hover:text-blue-600">View</button>
           <button data-action="edit-booking" data-id="${b.id}" class="focus-outline text-[10px] px-2 py-[2px] rounded-full bg-white text-slate-700 border border-slate-300 hover:border-teal-500 hover:text-teal-600">Edit</button>
           <button data-action="delete-booking" data-id="${b.id}" class="focus-outline text-[10px] px-2 py-[2px] rounded-full bg-white text-slate-600 border border-slate-300 hover:border-red-500 hover:text-red-600">Delete</button>
         </div>
@@ -1383,6 +1480,26 @@ async function renderBookingsPage() {
           </table>
         </div>
       </div>
+      <!-- Booking Details Modal -->
+      <div id="booking-details-modal" class="hidden fixed inset-0 flex items-center justify-center z-50">
+        <div class="modal-backdrop absolute inset-0 bg-black/30 backdrop-blur-sm" id="booking-details-backdrop"></div>
+        <div class="relative w-full max-w-lg max-h-[90vh] rounded-2xl bg-white border border-slate-200 shadow-2xl mx-4 flex flex-col">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
+            <div>
+              <h3 class="text-base sm:text-lg font-semibold text-slate-800">Booking Details</h3>
+              <p class="text-[11px] sm:text-xs text-slate-500" id="booking-details-id">ID: ...</p>
+            </div>
+            <button type="button" id="btn-close-booking-details" class="focus-outline text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+          </div>
+          <div class="p-5 flex-1 overflow-y-auto flex flex-col gap-4" id="booking-details-content">
+            <!-- Content will be injected here -->
+          </div>
+          <div class="flex justify-end px-5 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex-shrink-0">
+            <button type="button" id="btn-done-booking-details" class="px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 text-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-200">Close</button>
+          </div>
+        </div>
+      </div>
+      
       <div id="booking-modal" class="hidden fixed inset-0 flex items-center justify-center z-50">
         <div class="modal-backdrop absolute inset-0" id="booking-modal-backdrop"></div>
         <div class="relative w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl mx-4">
@@ -1488,7 +1605,143 @@ function attachBookingHandlers() {
     const id = btn.dataset.id;
     const action = btn.dataset.action;
 
-    if (action === 'delete-booking') {
+    if (action === 'view-booking') {
+      const bookings = await DatabaseService.getBookings();
+      const booking = bookings.find(b => b.id === id);
+      if (!booking) return;
+
+      const modal = document.getElementById('booking-details-modal');
+      const modalId = document.getElementById('booking-details-id');
+      const modalContent = document.getElementById('booking-details-content');
+
+      // Handlers
+      const closeModal = () => modal.classList.add('hidden');
+      document.getElementById('btn-close-booking-details').onclick = closeModal;
+      document.getElementById('btn-done-booking-details').onclick = closeModal;
+      document.getElementById('booking-details-backdrop').onclick = closeModal;
+
+      modalId.textContent = `Booking #${booking.id.substring(0, 8)}`;
+
+      const vehicleInfo = booking.vehicle_info || {};
+      const vehicleString = `${vehicleInfo.year || ''} ${vehicleInfo.make || ''} ${vehicleInfo.model || ''}`.trim() || 'N/A';
+
+      // 1. Fetch Included Parts if service_type_id exists
+      let partsHtml = '';
+      let partsTotal = 0;
+
+      if (booking.service_type_id) {
+        const serviceProducts = await DatabaseService.getServiceTypeProducts(booking.service_type_id);
+
+        if (serviceProducts.length > 0) {
+          const partsList = serviceProducts.map(sp => {
+            const prodName = sp.product?.name || 'Unknown Part';
+            const price = parseFloat(sp.product?.price || 0);
+            const lineTotal = price * sp.quantity;
+            partsTotal += lineTotal;
+
+            return `
+                      <div class="flex items-center justify-between py-1 border-b border-slate-50 last:border-0 text-xs">
+                          <span class="text-slate-700 font-medium">${prodName}</span>
+                          <div class="text-right">
+                            <span class="text-slate-500 text-[10px] mr-1">${sp.quantity} x ${formatCurrency(price)}</span>
+                            <span class="text-slate-700 font-medium">${formatCurrency(lineTotal)}</span>
+                          </div>
+                      </div>
+                  `;
+          }).join('');
+
+          partsHtml = `
+                  <div class="mt-3 bg-slate-50 rounded-lg border border-slate-100 p-3">
+                      <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">Included Parts</span>
+                      <div class="flex flex-col gap-1">
+                          ${partsList}
+                      </div>
+                  </div>
+              `;
+        }
+      }
+
+      // 2. Calculate Totals
+      const basePrice = parseFloat(booking.service_type_details?.base_price || 0);
+      const subtotal = basePrice + partsTotal;
+      const tax = calculateTax(subtotal);
+      const total = calculateTotalWithTax(subtotal);
+
+      const summaryHtml = `
+          <div class="mt-4 bg-slate-50 px-4 py-3 rounded-lg border border-slate-200 flex flex-col gap-1">
+              <div class="flex justify-between text-xs text-slate-500">
+                  <span>Service Base Price</span>
+                  <span>${formatCurrency(basePrice)}</span>
+              </div>
+              <div class="flex justify-between text-xs text-slate-500">
+                  <span>Parts Total</span>
+                  <span>${formatCurrency(partsTotal)}</span>
+              </div>
+              <div class="hidden sm:block my-1 border-t border-slate-200"></div>
+              <div class="flex justify-between text-xs text-slate-500">
+                  <span>Subtotal</span>
+                  <span>${formatCurrency(subtotal)}</span>
+              </div>
+              <div class="flex justify-between text-xs text-slate-500">
+                  <span>Tax (14%)</span>
+                  <span>${formatCurrency(tax)}</span>
+              </div>
+              <div class="flex justify-between text-sm font-bold text-slate-800 mt-1 pt-1 border-t border-slate-200">
+                  <span>Estimated Total</span>
+                  <span>${formatCurrency(total)}</span>
+              </div>
+          </div>
+      `;
+
+      modalContent.innerHTML = `
+          <div class="p-3 bg-purple-50 rounded-xl border border-purple-100 mb-2">
+              <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-xl shadow-sm border border-purple-100">
+                      ${booking.service_type === 'Oil Change' ? '🛢️' : '🔧'}
+                  </div>
+                  <div>
+                      <p class="text-sm font-bold text-slate-800">${booking.service_type}</p>
+                      <p class="text-xs text-slate-500">${new Date(booking.scheduled_date).toLocaleString()}</p>
+                  </div>
+              </div>
+          </div>
+
+          <div class="space-y-3">
+              <div class="flex justify-between items-start border-b border-slate-100 pb-2">
+                  <span class="text-xs font-medium text-slate-500">Customer</span>
+                  <div class="text-right">
+                      <p class="text-sm font-medium text-slate-800">${booking.profile?.full_name || 'Guest'}</p>
+                      <p class="text-xs text-slate-500">${booking.profile?.phone || booking.profile?.email || 'N/A'}</p>
+                  </div>
+              </div>
+              
+              <div class="flex justify-between items-start border-b border-slate-100 pb-2">
+                  <span class="text-xs font-medium text-slate-500">Vehicle</span>
+                  <span class="text-sm font-medium text-slate-800">${vehicleString}</span>
+              </div>
+              
+              <div class="flex justify-between items-start border-b border-slate-100 pb-2">
+                  <span class="text-xs font-medium text-slate-500">Status</span>
+                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 capitalize">
+                      ${booking.status}
+                  </span>
+              </div>
+
+              ${partsHtml}
+              ${summaryHtml}
+
+              <div>
+                  <span class="text-xs font-medium text-slate-500 block mb-1">Notes</span>
+                  <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 text-sm text-slate-600 min-h-[60px]">
+                      ${booking.notes || 'No significant notes.'}
+                  </div>
+              </div>
+          </div>
+      `;
+
+      modal.classList.remove('hidden');
+
+    } else if (action === 'delete-booking') {
       if (confirm('Are you sure you want to delete this booking?')) {
         const result = await DatabaseService.deleteBooking(id);
         if (result.success) renderBookingsPage();

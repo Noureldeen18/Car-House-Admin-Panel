@@ -841,7 +841,8 @@ const DatabaseService = {
         .select(
           `
                     *,
-                    profile:profiles(id, email, full_name, phone)
+                    profile:profiles(id, email, full_name, phone),
+                    service_type_details:service_types(base_price)
                 `
         )
         .order("scheduled_date", { ascending: false });
