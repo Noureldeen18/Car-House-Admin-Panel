@@ -362,8 +362,74 @@ async function renderDashboard() {
           <p class="text-[11px] text-slate-500">Awaiting processing</p>
         </article>
       </div>
+
+      <!-- Quick Actions -->
+      <div class="mt-4">
+        <h3 class="text-sm font-semibold text-slate-800 mb-3">Quick Actions</h3>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <button data-quick-action="products" data-target-btn="btn-add-product" class="focus-outline flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-orange-400 hover:shadow-md transition-all group text-slate-600 hover:text-orange-600">
+            <div class="w-10 h-10 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">＋</div>
+            <span class="text-xs font-medium">Add Product</span>
+          </button>
+
+          <button data-quick-action="categories" data-target-btn="btn-add-category" class="focus-outline flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-teal-400 hover:shadow-md transition-all group text-slate-600 hover:text-teal-600">
+            <div class="w-10 h-10 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">＋</div>
+            <span class="text-xs font-medium">Add Category</span>
+          </button>
+
+          <button data-quick-action="service-types" data-target-btn="btn-add-service" class="focus-outline flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group text-slate-600 hover:text-indigo-600">
+            <div class="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">＋</div>
+            <span class="text-xs font-medium">Add Service</span>
+          </button>
+
+          <button data-quick-action="bookings" data-target-btn="btn-add-booking" class="focus-outline flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-purple-400 hover:shadow-md transition-all group text-slate-600 hover:text-purple-600">
+            <div class="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">＋</div>
+            <span class="text-xs font-medium">Add Booking</span>
+          </button>
+
+          <button data-quick-action="users" data-target-btn="btn-add-user" class="focus-outline flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-blue-400 hover:shadow-md transition-all group text-slate-600 hover:text-blue-600">
+            <div class="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">＋</div>
+            <span class="text-xs font-medium">Add User</span>
+          </button>
+
+          <button data-quick-action="users" data-action-type="delete" class="focus-outline flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-red-400 hover:shadow-md transition-all group text-slate-600 hover:text-red-600">
+            <div class="w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">🗑️</div>
+            <span class="text-xs font-medium">Delete User</span>
+          </button>
+        </div>
+      </div>
     </section>
   `;
+
+  attachDashboardHandlers();
+}
+
+function attachDashboardHandlers() {
+  document.querySelectorAll('button[data-quick-action]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      // Navigate to the target page
+      await setActivePage(btn.dataset.quickAction);
+
+      // If a target button is defined (e.g., 'btn-add-product'), click it
+      if (btn.dataset.targetBtn) {
+        // Wait briefly for DOM info if needed, though await setActivePage() should be enough
+        setTimeout(() => {
+          const target = document.getElementById(btn.dataset.targetBtn);
+          if (target) {
+            target.click();
+          } else {
+            console.warn('Target button not found:', btn.dataset.targetBtn);
+          }
+        }, 100);
+      }
+
+      // Handle special cases without specific buttons if needed
+      if (btn.dataset.actionType === 'delete') {
+        // Current implementation just goes to the users page
+        // Could assume the user will simply click 'Block' or 'Delete' (if implemented) there.
+      }
+    });
+  });
 }
 
 /* ========================================== */
@@ -2157,6 +2223,7 @@ function setActivePage(pageKey) {
   };
 
   pages[pageKey]?.();
+  return pages[pageKey]?.();
 }
 
 function attachSidebarNav() {
