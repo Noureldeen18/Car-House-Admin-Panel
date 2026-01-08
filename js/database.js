@@ -163,33 +163,19 @@ const DatabaseService = {
           `
           *,
           category:categories(id, name, slug, icon),
-          images:product_images(id, url, alt, position)
+          images:product_images(id, url, alt, position),
+          inventory:inventory(quantity, reserved, store:stores(name))
         `
         )
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      // Get inventory for each product
-      const productsWithInventory = await Promise.all(
-        data.map(async (product) => {
-          const { data: inventory } = await supabase
-            .from("inventory")
-            .select("quantity, reserved, store:stores(name)")
-            .eq("product_id", product.id);
-
-          const totalStock =
-            inventory?.reduce((sum, inv) => sum + inv.quantity, 0) || 0;
-
-          return {
-            ...product,
-            inventory,
-            total_stock: totalStock,
-          };
-        })
-      );
-
-      return productsWithInventory;
+      // Map to include total_stock
+      return data.map(product => ({
+        ...product,
+        total_stock: product.inventory?.reduce((sum, inv) => sum + (inv.quantity || 0), 0) || 0
+      }));
     } catch (error) {
       console.error("Error fetching products:", error);
       return [];
@@ -942,40 +928,46 @@ const DatabaseService = {
 
   async getStatistics() {
     try {
-      const [products, categories, orders, profiles, reviews, bookings] =
-        await Promise.all([
-          this.getProducts(),
-          this.getCategories(),
-          this.getOrders(),
-          this.getProfiles(),
-          this.getReviews(),
-          this.getBookings(),
-        ]);
+      const [
+        { count: productCount },
+        { count: categoryCount },
+        { data: orderData },
+        { count: userCount },
+        { data: reviewData },
+        { data: bookingData }
+      ] = await Promise.all([
+        supabase.from("products").select("*", { count: "exact", head: true }),
+        supabase.from("categories").select("*", { count: "exact", head: true }),
+        supabase.from("orders").select("total_amount, status"),
+        supabase.from("profiles").select("*", { count: "exact", head: true }),
+        supabase.from("reviews").select("rating"),
+        supabase.from("workshop_bookings").select("status")
+      ]);
 
-      const totalRevenue = orders.reduce(
+      const totalRevenue = (orderData || []).reduce(
         (sum, order) => sum + parseFloat(order.total_amount || 0),
         0
       );
 
-      const pendingOrders = orders.filter((o) => o.status === "pending").length;
-      const pendingBookings = bookings.filter(
+      const pendingOrders = (orderData || []).filter((o) => o.status === "pending").length;
+      const pendingBookings = (bookingData || []).filter(
         (b) => b.status === "scheduled" || b.status === "pending"
       ).length;
-      const averageRating =
-        reviews.length > 0
-          ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-          : 0;
+
+      const avgRating = (reviewData || []).length > 0
+        ? reviewData.reduce((sum, r) => sum + (r.rating || 0), 0) / reviewData.length
+        : 0;
 
       return {
-        totalProducts: products.length,
-        totalCategories: categories.length,
-        totalOrders: orders.length,
-        totalUsers: profiles.length,
+        totalProducts: productCount || 0,
+        totalCategories: categoryCount || 0,
+        totalOrders: (orderData || []).length,
+        totalUsers: userCount || 0,
         totalRevenue,
         pendingOrders,
-        totalReviews: reviews.length,
-        averageRating: averageRating.toFixed(1),
-        totalBookings: bookings.length,
+        totalReviews: (reviewData || []).length,
+        averageRating: avgRating.toFixed(1),
+        totalBookings: (bookingData || []).length,
         pendingBookings,
       };
     } catch (error) {

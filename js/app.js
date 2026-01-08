@@ -273,7 +273,11 @@ async function renderDashboard() {
   if (!main) return;
 
   // Show loading
-  main.innerHTML = '<div class="w-full h-full flex items-center justify-center"><p class="text-slate-500">Loading...</p></div>';
+  main.innerHTML = `
+    <div class="w-full h-full flex flex-col items-center justify-center gap-3">
+      <div class="spinner"></div>
+      <p class="text-xs text-slate-500 font-medium">Loading Dashboard...</p>
+    </div>`;
 
   // Fetch statistics
   const stats = await DatabaseService.getStatistics();
@@ -441,7 +445,11 @@ async function renderProductsPage() {
   if (!main) return;
 
   // Show loading
-  main.innerHTML = '<div class="w-full h-full flex items-center justify-center"><p class="text-slate-500">Loading products...</p></div>';
+  main.innerHTML = `
+    <div class="w-full h-full flex flex-col items-center justify-center gap-3">
+      <div class="spinner"></div>
+      <p class="text-xs text-slate-500 font-medium">Loading Products...</p>
+    </div>`;
 
   // Fetch products and categories
   const [products, categories] = await Promise.all([
@@ -486,10 +494,16 @@ async function renderProductsPage() {
       </td>
       <td class="px-3 py-2 text-xs sm:text-sm">
         <div class="font-medium text-slate-800">${p.name}</div>
+        <div class="text-[10px] text-slate-400 font-mono">${p.sku || 'NO-SKU'}</div>
         <div class="text-[11px] text-slate-500">${p.car_model || 'Universal'}</div>
       </td>
-      <td class="px-3 py-2 text-[11px] sm:text-xs text-slate-600">${p.category?.name || 'N/A'}</td>
-      <td class="px-3 py-2 text-[11px] sm:text-xs text-orange-600 font-medium">${formatCurrency(p.price)}</td>
+      <td class="px-3 py-2 text-[11px] sm:text-xs text-slate-600">
+        <div>${p.category?.name || 'N/A'}</div>
+        <div class="text-[10px] text-slate-400">${p.brand || 'No Brand'}</div>
+      </td>
+      <td class="px-3 py-2 text-[11px] sm:text-xs">
+        <div class="text-orange-600 font-medium">${formatCurrency(p.price)}</div>
+      </td>
       <td class="px-3 py-2 text-[11px] sm:text-xs">
         <div class="flex items-center gap-1">
           <span class="text-amber-500 text-sm">${stars}</span>
@@ -500,6 +514,7 @@ async function renderProductsPage() {
         <span class="inline-flex items-center rounded-full px-2 py-[1px] border border-slate-300 text-slate-700 bg-slate-50">
           ${p.stock} in stock
         </span>
+        ${p.is_featured ? '<div class="text-[10px] text-orange-500 font-medium mt-1">★ Featured</div>' : ''}
       </td>
       <td class="px-3 py-2">
         <div class="flex flex-wrap gap-1.5">
@@ -555,71 +570,102 @@ async function renderProductsPage() {
     </section>
 
     <div id="product-modal" class="hidden fixed inset-0 flex items-center justify-center z-50">
-      <div class="modal-backdrop absolute inset-0" id="modal-backdrop"></div>
-      <div class="relative w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-2xl mx-4">
-        <form id="product-form" class="flex flex-col gap-3 px-4 sm:px-5 py-4">
-          <div class="flex items-start justify-between gap-3">
+      <div class="modal-backdrop absolute inset-0 bg-black/40 backdrop-blur-sm" id="modal-backdrop"></div>
+      <div class="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl mx-4 app-scrollbar">
+        <form id="product-form" class="flex flex-col gap-4 px-4 sm:px-6 py-5">
+          <div class="flex items-start justify-between gap-3 sticky top-0 bg-white z-10 pb-2 border-b border-slate-100">
             <div>
-              <h3 id="product-modal-title" class="text-sm sm:text-base font-semibold text-slate-800">New product</h3>
-              <p class="text-[11px] sm:text-xs text-slate-500 mt-1">Add or update car spare part details.</p>
+              <h3 id="product-modal-title" class="text-base sm:text-lg font-bold text-slate-800">New product</h3>
+              <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5">Add or update car spare part details.</p>
             </div>
-            <button type="button" id="btn-close-product-modal" class="focus-outline text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
+            <button type="button" id="btn-close-product-modal" class="focus-outline text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
           </div>
 
           <input type="hidden" id="product-id" />
           
-          <div class="flex flex-col gap-1 mt-1">
-            <label for="product-image" class="text-[11px] text-slate-600 font-medium">Product Image</label>
-            <input id="product-image" type="file" accept="image/*" class="focus-outline text-xs px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-slate-700 file:mr-4 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-orange-500 file:text-white hover:file:bg-orange-600" />
-          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Left Column -->
+            <div class="flex flex-col gap-3">
+              <div class="flex flex-col gap-1">
+                <label for="product-name" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Product Display Name</label>
+                <input id="product-name" type="text" required class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 focus:bg-white focus:border-orange-500 transition-all" />
+              </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
-            <div class="flex flex-col gap-1">
-              <label for="product-name" class="text-[11px] text-slate-600 font-medium">Product name</label>
-              <input id="product-name" type="text" required class="focus-outline text-xs px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800" />
+              <div class="grid grid-cols-2 gap-3">
+                <div class="flex flex-col gap-1">
+                  <label for="product-sku" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">SKU Code</label>
+                  <input id="product-sku" type="text" placeholder="CH-001" class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 font-mono" />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label for="product-brand" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Manufacturer/Brand</label>
+                  <input id="product-brand" type="text" required class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800" />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3">
+                <div class="flex flex-col gap-1">
+                  <label for="product-category" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Category</label>
+                  <select id="product-category" required class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800">
+                    <option value="">Select category</option>
+                    ${categoriesOptions}
+                  </select>
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label for="product-car-model" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Car Compatibility</label>
+                  <input id="product-car-model" type="text" placeholder="e.g. BMW X5 2020+" class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800" />
+                </div>
+              </div>
             </div>
-            <div class="flex flex-col gap-1">
-              <label for="product-brand" class="text-[11px] text-slate-600 font-medium">Brand</label>
-              <input id="product-brand" type="text" required class="focus-outline text-xs px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800" />
-            </div>
-            <div class="flex flex-col gap-1">
-              <label for="product-category" class="text-[11px] text-slate-600 font-medium">Category</label>
-              <select id="product-category" required class="focus-outline text-xs px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800">
-                <option value="">Select category</option>
-                ${categoriesOptions}
-              </select>
-            </div>
-            <div class="flex flex-col gap-1">
-              <label for="product-car-model" class="text-[11px] text-slate-600 font-medium">Car model</label>
-              <input id="product-car-model" type="text" class="focus-outline text-xs px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800" />
-            </div>
-            <div class="flex flex-col gap-1">
-              <label for="product-price" class="text-[11px] text-slate-600 font-medium">Price (EGP)</label>
-              <input id="product-price" type="number" step="0.01" min="0" required class="focus-outline text-xs px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800" />
-            </div>
-            <div class="flex flex-col gap-1">
-              <label for="product-stock" class="text-[11px] text-slate-600 font-medium">Stock</label>
-              <input id="product-stock" type="number" min="0" required class="focus-outline text-xs px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800" />
-            </div>
-            <div class="flex flex-col gap-1 sm:col-span-2">
-              <label for="product-rating" class="text-[11px] text-slate-600 font-medium">Rating (0-5 stars)</label>
-              <div class="flex items-center gap-2">
-                <input id="product-rating" type="range" min="0" max="5" step="0.1" value="0" class="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500" />
-                <span id="rating-display" class="text-amber-500 text-sm min-w-[80px]">☆☆☆☆☆ (0.0)</span>
+
+            <!-- Right Column -->
+            <div class="flex flex-col gap-3">
+              <div class="flex flex-col gap-1">
+                <label for="product-image" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Product Main Image</label>
+                <input id="product-image" type="file" accept="image/*" class="focus-outline text-[10px] px-2 py-1.5 rounded-lg bg-slate-100 border border-dashed border-slate-300 text-slate-700 file:mr-3 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[10px] file:font-bold file:bg-orange-500 file:text-white hover:file:bg-orange-600 cursor-pointer" />
+              </div>
+
+              <div class="grid grid-cols-1 gap-3">
+                <div class="flex flex-col gap-1">
+                  <label for="product-price" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Selling Price (EGP)</label>
+                  <input id="product-price" type="number" step="0.01" min="0" required class="focus-outline text-xs px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800 font-bold" />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3">
+                <div class="flex flex-col gap-1">
+                  <label for="product-stock" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Current Inventory Level</label>
+                  <input id="product-stock" type="number" min="0" required class="focus-outline text-xs px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800 font-bold" />
+                </div>
+              </div>
+
+              <div class="flex flex-col gap-1">
+                <label class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Product Visibility</label>
+                <label class="flex items-center gap-2 cursor-pointer mt-1 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                  <input id="product-featured" type="checkbox" class="w-4 h-4 rounded text-orange-500 focus:ring-orange-500 border-slate-300" />
+                  <span class="text-xs text-slate-700">Display in Featured Products Section</span>
+                </label>
               </div>
             </div>
           </div>
 
-          <div class="flex flex-col gap-1 mt-1">
-            <label for="product-description" class="text-[11px] text-slate-600 font-medium">Description</label>
-            <textarea id="product-description" rows="2" class="focus-outline text-xs px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800"></textarea>
+          <div class="flex flex-col gap-1">
+            <label for="product-rating" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Customer Rating (Simulated)</label>
+            <div class="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-200">
+              <input id="product-rating" type="range" min="0" max="5" step="0.1" value="0" class="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500" />
+              <span id="rating-display" class="text-amber-500 text-sm font-bold min-w-[90px] text-center">☆☆☆☆☆ (0.0)</span>
+            </div>
           </div>
 
-          <div class="flex items-center justify-between gap-3 mt-1">
-            <p id="product-form-message" class="text-[11px] text-slate-500"></p>
-            <div class="flex items-center gap-2">
-              <button type="button" id="btn-cancel-product" class="focus-outline px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-[11px] sm:text-xs text-slate-700 hover:border-slate-400">Cancel</button>
-              <button type="submit" id="btn-save-product" class="focus-outline px-3 py-1.5 rounded-lg bg-orange-500 text-white text-[11px] sm:text-xs font-semibold hover:bg-orange-600">Save</button>
+          <div class="flex flex-col gap-1">
+            <label for="product-description" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Full Technical Description</label>
+            <textarea id="product-description" rows="3" class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 focus:bg-white focus:border-orange-500 transition-all"></textarea>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 mt-2 pt-4 border-t border-slate-100">
+            <p id="product-form-message" class="text-[11px] font-medium"></p>
+            <div class="flex items-center gap-3">
+              <button type="button" id="btn-cancel-product" class="focus-outline px-4 py-2 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">Discard</button>
+              <button type="submit" id="btn-save-product" class="focus-outline px-6 py-2 rounded-lg bg-orange-500 text-white text-xs font-bold hover:bg-orange-600 shadow-lg shadow-orange-200 transition-all">Publish Product</button>
             </div>
           </div>
         </form>
@@ -682,11 +728,15 @@ function attachProductHandlers() {
       document.getElementById('product-id').value = product.id;
       document.getElementById('product-image').value = ''; // Reset file input
       document.getElementById('product-name').value = product.name;
+      document.getElementById('product-sku').value = product.sku || '';
       document.getElementById('product-brand').value = product.brand || '';
       document.getElementById('product-category').value = product.category_id || '';
       document.getElementById('product-car-model').value = product.car_model || '';
+
       document.getElementById('product-price').value = product.price;
       document.getElementById('product-stock').value = product.stock;
+      document.getElementById('product-featured').checked = product.is_featured || false;
+
       document.getElementById('product-description').value = product.description || '';
 
       // Set rating
@@ -708,11 +758,13 @@ function attachProductHandlers() {
 
     const data = {
       name: document.getElementById('product-name').value,
+      sku: document.getElementById('product-sku').value,
       brand: document.getElementById('product-brand').value,
       category_id: document.getElementById('product-category').value || null,
       car_model: document.getElementById('product-car-model').value,
       price: parseFloat(document.getElementById('product-price').value),
       stock: parseInt(document.getElementById('product-stock').value),
+      is_featured: document.getElementById('product-featured').checked,
       rating: parseFloat(document.getElementById('product-rating').value) || 0,
       description: document.getElementById('product-description').value
     };
@@ -770,7 +822,11 @@ async function renderCategoriesPage() {
   const main = document.getElementById("main-content");
   if (!main) return;
 
-  main.innerHTML = '<div class="w-full h-full flex items-center justify-center"><p class="text-slate-500">Loading categories...</p></div>';
+  main.innerHTML = `
+    <div class="w-full h-full flex flex-col items-center justify-center gap-3">
+      <div class="spinner"></div>
+      <p class="text-xs text-slate-500 font-medium">Loading Categories...</p>
+    </div>`;
 
   const categories = await DatabaseService.getCategories();
 
@@ -782,15 +838,19 @@ async function renderCategoriesPage() {
       : (c.icon || '🏷️');
 
     return `
-    <li class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-teal-400 card-elevated shadow-sm">
+    <li class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-teal-400 card-elevated shadow-sm ${!c.is_active ? 'opacity-60 bg-slate-50' : ''}">
       <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-lg overflow-hidden">${iconDisplay}</div>
+        <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-lg overflow-hidden border border-slate-100">${iconDisplay}</div>
         <div class="flex flex-col">
-          <span class="text-xs sm:text-sm font-medium text-slate-800">${c.name}</span>
-          <span class="text-[10px] text-slate-500">${c.description || ''}</span>
+          <div class="flex items-center gap-2">
+            <span class="text-xs sm:text-sm font-bold text-slate-800">${c.name}</span>
+            ${!c.is_active ? '<span class="text-[9px] px-1.5 py-[1px] rounded bg-slate-200 text-slate-500 uppercase font-bold">Hidden</span>' : ''}
+          </div>
+          <span class="text-[10px] text-slate-400 font-mono">/${c.slug || ''}</span>
         </div>
       </div>
       <div class="flex items-center gap-1.5">
+        <span class="text-[10px] text-slate-400 mr-2">Pos: ${c.position || 0}</span>
         <button data-action="edit-category" data-id="${c.id}" class="focus-outline text-[10px] px-2 py-[2px] rounded-full bg-white text-slate-700 border border-slate-300 hover:border-teal-500 hover:text-teal-600">Edit</button>
         <button data-action="delete-category" data-id="${c.id}" class="focus-outline text-[10px] px-2 py-[2px] rounded-full bg-white text-slate-600 border border-slate-300 hover:border-red-500 hover:text-red-600">Delete</button>
       </div>
@@ -832,21 +892,41 @@ async function renderCategoriesPage() {
 
             <input type="hidden" id="category-id" />
 
-            <div class="flex flex-col gap-1">
-              <label for="category-name" class="text-[11px] text-slate-600 font-medium">Category name</label>
-              <input id="category-name" type="text" required class="focus-outline text-xs px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800" />
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
+              <div class="flex flex-col gap-1">
+                <label for="category-name" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Category Display Name</label>
+                <input id="category-name" type="text" required class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800" />
+              </div>
+
+              <div class="flex flex-col gap-1">
+                <label for="category-slug" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">URL Slug (e.g. engine-parts)</label>
+                <input id="category-slug" type="text" required class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 font-mono" />
+              </div>
             </div>
 
             <div class="flex flex-col gap-1">
-              <label for="category-icon" class="text-[11px] text-slate-600 font-medium">Icon (Image)</label>
-              <input id="category-icon" type="file" accept="image/svg+xml,image/png,image/jpeg,image/jpg,image/webp,image/gif,.svg,.png,.jpg,.jpeg,.webp,.gif" class="focus-outline text-xs px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-slate-700 file:mr-4 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-teal-500 file:text-white hover:file:bg-teal-600" />
-              <p class="text-[10px] text-slate-400">Supports: SVG, PNG, JPG, WEBP, GIF</p>
+              <label for="category-icon" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Icon or Image</label>
+              <input id="category-icon" type="file" accept="image/*" class="focus-outline text-[10px] px-2 py-1.5 rounded-lg bg-slate-50 border border-dashed border-slate-300 text-slate-700 file:mr-3 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-[10px] file:font-bold file:bg-teal-500 file:text-white" />
               <input type="hidden" id="category-icon-url" />
             </div>
 
+            <div class="grid grid-cols-2 gap-3">
+              <div class="flex flex-col gap-1">
+                <label for="category-position" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Display Order</label>
+                <input id="category-position" type="number" value="0" class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800" />
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">visibility</label>
+                <label class="flex items-center gap-2 cursor-pointer mt-1">
+                  <input id="category-is-active" type="checkbox" checked class="w-4 h-4 rounded text-teal-500 border-slate-300" />
+                  <span class="text-xs text-slate-700">Active and Visible</span>
+                </label>
+              </div>
+            </div>
+
             <div class="flex flex-col gap-1">
-              <label for="category-description" class="text-[11px] text-slate-600 font-medium">Description</label>
-              <input id="category-description" type="text" class="focus-outline text-xs px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800" />
+              <label for="category-description" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Brief Description</label>
+              <input id="category-description" type="text" class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800" />
             </div>
 
             <div class="flex items-center justify-between gap-3 mt-1">
@@ -905,6 +985,9 @@ function attachCategoryHandlers() {
       document.getElementById('category-modal-title').textContent = 'Edit category';
       document.getElementById('category-id').value = category.id;
       document.getElementById('category-name').value = category.name;
+      document.getElementById('category-slug').value = category.slug || '';
+      document.getElementById('category-position').value = category.position || 0;
+      document.getElementById('category-is-active').checked = category.is_active !== false;
       document.getElementById('category-icon-url').value = category.icon || '';
       // Reset file input
       document.getElementById('category-icon').value = '';
@@ -939,15 +1022,18 @@ function attachCategoryHandlers() {
       }
     }
 
-    const data = {
+    const categoryData = {
       name: document.getElementById('category-name').value,
-      icon: iconUrl || '🏷️', // Fallback to emoji if no image
-      description: document.getElementById('category-description').value
+      slug: document.getElementById('category-slug').value,
+      position: parseInt(document.getElementById('category-position').value) || 0,
+      is_active: document.getElementById('category-is-active').checked,
+      description: document.getElementById('category-description').value,
+      icon: iconUrl || '🏷️'
     };
 
     const result = id
-      ? await DatabaseService.updateCategory(id, data)
-      : await DatabaseService.createCategory(data);
+      ? await DatabaseService.updateCategory(id, categoryData)
+      : await DatabaseService.createCategory(categoryData);
 
     if (result.success) {
       msg.textContent = 'Saved!';
@@ -973,7 +1059,11 @@ async function renderOrdersPage() {
   const main = document.getElementById("main-content");
   if (!main) return;
 
-  main.innerHTML = '<div class="w-full h-full flex items-center justify-center"><p class="text-slate-500">Loading orders...</p></div>';
+  main.innerHTML = `
+    <div class="w-full h-full flex flex-col items-center justify-center gap-3">
+      <div class="spinner"></div>
+      <p class="text-xs text-slate-500 font-medium">Loading Orders...</p>
+    </div>`;
 
   const orders = await DatabaseService.getOrders();
 
@@ -990,35 +1080,47 @@ async function renderOrdersPage() {
     const tax = calculateTax(subtotal);
 
     return `
-    <tr class="border-b border-slate-200 hover:bg-slate-50">
-        <td class="px-3 py-2 text-[11px] sm:text-xs font-medium text-slate-800">${o.id.substring(0, 8)}</td>
-        <td class="px-3 py-2 text-xs sm:text-sm">
-          <div class="text-slate-800">${o.profile?.full_name || o.user?.full_name || 'N/A'}</div>
-          <div class="text-[10px] text-slate-500">${formatDate(o.created_at)}</div>
-        </td>
-        <td class="px-3 py-2 text-[11px] sm:text-xs text-slate-600">${itemCount} items</td>
-        <td class="px-3 py-2 text-[11px] sm:text-xs">
-          <div class="flex flex-col gap-0.5">
-            <span class="text-slate-500">Subtotal: ${formatCurrency(subtotal)}</span>
-            <span class="text-slate-400">Tax (14%): ${formatCurrency(tax)}</span>
-            <span class="text-orange-600 font-medium">Total: ${formatCurrency(total)}</span>
+    <tr class="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+        <td class="px-3 py-3 text-[11px] sm:text-xs font-bold text-slate-800 font-mono">#${o.id.substring(0, 8).toUpperCase()}</td>
+        <td class="px-3 py-3 text-xs sm:text-sm">
+          <div class="font-bold text-slate-800">${o.profile?.full_name || o.user?.full_name || 'Anonymous'}</div>
+          <div class="text-[10px] text-slate-400 flex items-center gap-1">
+            <span>📅</span> ${formatDate(o.created_at)}
           </div>
         </td>
-        <td class="px-3 py-2 text-[11px] sm:text-xs">
-          <span class="${badgeClass}">${o.status}</span>
+        <td class="px-3 py-3 text-[11px] sm:text-xs">
+          <div class="flex flex-col">
+            <span class="text-slate-700 font-medium">${itemCount} Items</span>
+            <span class="text-[10px] text-slate-400">${o.payment_method || 'No Payment info'}</span>
+          </div>
         </td>
-        <td class="px-3 py-2 text-right">
-          <select data-order-id="${o.id}" class="focus-outline bg-white border border-slate-300 rounded-full px-2 py-[1px] text-[11px] text-slate-700">
+        <td class="px-3 py-3 text-[11px] sm:text-xs">
+          <div class="flex flex-col gap-0.5">
+            <div class="flex items-center gap-2">
+              <span class="text-orange-600 font-bold">${formatCurrency(total)}</span>
+              <span class="text-[10px] px-1 rounded bg-slate-100 text-slate-500 font-bold">INCL. TAX</span>
+            </div>
+            <span class="text-[10px] text-slate-400">Net: ${formatCurrency(subtotal)}</span>
+          </div>
+        </td>
+        <td class="px-3 py-3 text-[11px] sm:text-xs">
+          <span class="${badgeClass} font-bold uppercase tracking-tighter">${o.status}</span>
+        </td>
+        <td class="px-3 py-3 text-right">
+          <select data-order-id="${o.id}" class="focus-outline bg-white border border-slate-300 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-700 shadow-sm cursor-pointer hover:border-orange-500">
             <option value="pending" ${o.status === "pending" ? "selected" : ""}>Pending</option>
             <option value="processing" ${o.status === "processing" ? "selected" : ""}>Processing</option>
             <option value="shipped" ${o.status === "shipped" ? "selected" : ""}>Shipped</option>
             <option value="delivered" ${o.status === "delivered" ? "selected" : ""}>Delivered</option>
             <option value="cancelled" ${o.status === "cancelled" ? "selected" : ""}>Cancelled</option>
+            <option value="refunded" ${o.status === "refunded" ? "selected" : ""}>Refunded</option>
           </select>
         </td>
-        <td class="px-3 py-2 text-right">
-          <button data-action="view-order" data-id="${o.id}" class="focus-outline text-[11px] px-2 py-[2px] rounded-full bg-white text-slate-600 border border-slate-300 hover:border-blue-500 hover:text-blue-600 mr-1">View</button>
-          <button data-action="delete-order" data-id="${o.id}" class="focus-outline text-[11px] px-2 py-[2px] rounded-full bg-white text-slate-600 border border-slate-300 hover:border-red-500 hover:text-red-600">Delete</button>
+        <td class="px-3 py-3 text-right">
+          <div class="flex items-center justify-end gap-1.5">
+            <button data-action="view-order" data-id="${o.id}" class="focus-outline w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 border border-slate-200 hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-all" title="View Details">👁️</button>
+            <button data-action="delete-order" data-id="${o.id}" class="focus-outline w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 border border-slate-200 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all" title="Delete Order">🗑️</button>
+          </div>
         </td>
       </tr>
     `;
@@ -1126,39 +1228,65 @@ async function renderOrdersPage() {
       const tax = calculateTax(subtotal);
 
       modalContent.innerHTML = `
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Customer Info</h4>
-                  <p class="text-sm font-medium text-slate-800">${order.profile?.full_name || 'Guest'}</p>
-                  <p class="text-xs text-slate-600">${order.profile?.email || 'N/A'}</p>
-                  <p class="text-xs text-slate-600">${order.profile?.phone || 'N/A'}</p>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Customer Info</h4>
+                  <div class="flex flex-col gap-1">
+                    <p class="text-sm font-bold text-slate-800">${order.profile?.full_name || 'Guest User'}</p>
+                    <p class="text-xs text-slate-600 flex items-center gap-2"><span>✉️</span> ${order.profile?.email || 'N/A'}</p>
+                    <p class="text-xs text-slate-600 flex items-center gap-2"><span>📞</span> ${order.profile?.phone || 'N/A'}</p>
+                  </div>
               </div>
-              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Shipping Details</h4>
-                  <p class="text-sm text-slate-700">${order.shipping_address?.address || 'N/A'}</p>
-                  <p class="text-xs text-slate-600">${order.shipping_address?.city || ''}, ${order.shipping_address?.country || ''}</p>
+              <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Shipping Details</h4>
+                  <div class="flex flex-col gap-1">
+                    <p class="text-xs font-bold text-slate-800">${order.shipping_address?.full_name || order.profile?.full_name || 'Recipient'}</p>
+                    <p class="text-xs text-slate-700 leading-relaxed">${order.shipping_address?.address || 'Street address not provided'}</p>
+                    <p class="text-[11px] text-slate-500">${order.shipping_address?.city || ''}${order.shipping_address?.state ? ', ' + order.shipping_address.state : ''} ${order.shipping_address?.zip || ''}</p>
+                    <p class="text-[10px] text-slate-400 font-bold mt-1 uppercase">${order.shipping_address?.country || 'Egypt'}</p>
+                  </div>
+              </div>
+              <div class="p-4 bg-orange-50 rounded-2xl border border-orange-100">
+                  <h4 class="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-3">Payment info</h4>
+                  <div class="flex flex-col gap-2">
+                    <div class="flex items-center justify-between">
+                      <span class="text-[11px] text-orange-700 font-medium">Method</span>
+                      <span class="text-[11px] font-bold text-orange-900">${order.payment_method?.toUpperCase() || 'CASH'}</span>
+                    </div>
+                    <div class="flex items-center justify-between border-t border-orange-200 pt-2 mt-1">
+                      <span class="text-[11px] text-orange-700 font-medium">Status</span>
+                      <span class="text-[11px] font-bold text-orange-900">${order.status?.toUpperCase()}</span>
+                    </div>
+                  </div>
               </div>
           </div>
           
-          <div class="border rounded-xl border-slate-200 overflow-hidden">
-              <div class="bg-slate-50 px-4 py-2 border-b border-slate-200">
-                  <h4 class="text-xs font-semibold text-slate-600">Order Items</h4>
+          ${order.notes ? `
+          <div class="p-4 bg-blue-50 rounded-2xl border border-blue-100">
+            <h4 class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-2">Order Notes</h4>
+            <p class="text-xs text-blue-800 italic leading-relaxed">"${order.notes}"</p>
+          </div>
+          ` : ''}
+
+          <div class="border rounded-2xl border-slate-200 overflow-hidden shadow-sm">
+              <div class="bg-slate-50 px-5 py-3 border-b border-slate-200">
+                  <h4 class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Order Items Invoices</h4>
               </div>
-              <div class="px-4 max-h-[200px] overflow-y-auto">
+              <div class="px-5 max-h-[300px] overflow-y-auto divide-y divide-slate-100">
                   ${itemsHtml}
               </div>
-              <div class="bg-slate-50 px-4 py-3 border-t border-slate-200 flex flex-col gap-1">
+              <div class="bg-slate-50 px-5 py-4 border-t border-slate-200 flex flex-col gap-2">
                   <div class="flex justify-between text-xs text-slate-500">
-                      <span>Subtotal</span>
+                      <span>Subtotal (Net)</span>
                       <span>${formatCurrency(subtotal)}</span>
                   </div>
                   <div class="flex justify-between text-xs text-slate-500">
-                      <span>Tax (14%)</span>
+                      <span>Value Added Tax (14%)</span>
                       <span>${formatCurrency(tax)}</span>
                   </div>
-                  <div class="flex justify-between text-sm font-bold text-slate-800 mt-1 pt-1 border-t border-slate-200">
-                      <span>Total</span>
-                      <span>${formatCurrency(order.total_amount)}</span>
+                  <div class="flex justify-between text-base font-black text-slate-900 mt-2 pt-3 border-t-2 border-dashed border-slate-200">
+                      <span>Total Amount Paid</span>
+                      <span class="text-orange-600">${formatCurrency(order.total_amount)}</span>
                   </div>
               </div>
           </div>
@@ -1187,7 +1315,11 @@ async function renderUsersPage() {
   const main = document.getElementById("main-content");
   if (!main) return;
 
-  main.innerHTML = '<div class="w-full h-full flex items-center justify-center"><p class="text-slate-500">Loading users...</p></div>';
+  main.innerHTML = `
+    <div class="w-full h-full flex flex-col items-center justify-center gap-3">
+      <div class="spinner"></div>
+      <p class="text-xs text-slate-500 font-medium">Loading Users...</p>
+    </div>`;
 
   const users = await DatabaseService.getUsers();
 
@@ -1451,7 +1583,11 @@ async function renderBookingsPage() {
   const main = document.getElementById("main-content");
   if (!main) return;
 
-  main.innerHTML = '<div class="w-full h-full flex items-center justify-center"><p class="text-slate-500">Loading bookings...</p></div>';
+  main.innerHTML = `
+    <div class="w-full h-full flex flex-col items-center justify-center gap-3">
+      <div class="spinner"></div>
+      <p class="text-xs text-slate-500 font-medium">Loading Bookings...</p>
+    </div>`;
 
   const [bookings, users, serviceTypes] = await Promise.all([
     DatabaseService.getBookings(),
@@ -1478,34 +1614,43 @@ async function renderBookingsPage() {
     const timeFormatted = scheduledDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
     return `
-    <tr class="border-b border-slate-200 hover:bg-slate-50">
-      <td class="px-3 py-2 text-[11px] sm:text-xs font-medium text-slate-800">${b.id.substring(0, 8)}</td>
-      <td class="px-3 py-2 text-xs sm:text-sm">
-        <div class="text-slate-800">${b.profile?.full_name || 'Guest'}</div>
-        <div class="text-[10px] text-slate-500">${b.profile?.phone || b.profile?.email || 'No contact'}</div>
+    <tr class="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+      <td class="px-3 py-3 text-[11px] sm:text-xs font-bold text-slate-800 font-mono">#${b.id.substring(0, 8).toUpperCase()}</td>
+      <td class="px-3 py-3 text-xs sm:text-sm">
+        <div class="font-bold text-slate-800">${b.profile?.full_name || 'Walk-in Customer'}</div>
+        <div class="text-[10px] text-slate-400 flex items-center gap-1">
+          <span>📞</span> ${b.profile?.phone || 'No phone'}
+        </div>
       </td>
-      <td class="px-3 py-2 text-[11px] sm:text-xs">
-        <div class="text-slate-800 font-medium">${b.service_type}</div>
-        <div class="text-[10px] text-slate-500">${vehicleDisplay}</div>
+      <td class="px-3 py-3 text-[11px] sm:text-xs">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs border border-indigo-100">${b.service_type_details?.icon || '🔧'}</div>
+          <div class="flex flex-col">
+            <span class="text-slate-800 font-bold">${b.service_type}</span>
+            <span class="text-[10px] text-slate-500 font-medium">${vehicleDisplay}</span>
+          </div>
+        </div>
       </td>
-      <td class="px-3 py-2 text-[11px] sm:text-xs">
-        <div class="text-slate-800">${dateFormatted}</div>
-        <div class="text-[10px] text-slate-500">${timeFormatted}</div>
+      <td class="px-3 py-3 text-[11px] sm:text-xs">
+        <div class="flex flex-col">
+          <span class="text-slate-800 font-bold">${dateFormatted}</span>
+          <span class="text-[10px] text-orange-500 font-medium">${timeFormatted}</span>
+        </div>
       </td>
-      <td class="px-3 py-2"><span class="${badgeClass}">${b.status}</span></td>
-      <td class="px-3 py-2 text-[11px] sm:text-xs text-slate-600 max-w-[150px] truncate">${b.notes || '-'}</td>
-      <td class="px-3 py-2">
-        <div class="flex flex-wrap gap-1.5">
-          <select data-booking-id="${b.id}" data-action="change-status" class="focus-outline bg-white border border-slate-300 rounded-full px-2 py-[1px] text-[10px] text-slate-700">
+      <td class="px-3 py-3"><span class="${badgeClass} font-bold uppercase tracking-tighter">${b.status}</span></td>
+      <td class="px-3 py-3">
+        <div class="flex flex-wrap gap-1.5 justify-end">
+          <select data-booking-id="${b.id}" data-action="change-status" class="focus-outline bg-white border border-slate-300 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-700 hover:border-purple-500 shadow-sm cursor-pointer">
             <option value="scheduled" ${b.status === "scheduled" ? "selected" : ""}>Scheduled</option>
             <option value="pending" ${b.status === "pending" ? "selected" : ""}>Pending</option>
-            <option value="in_progress" ${b.status === "in_progress" ? "selected" : ""}>In Progress</option>
+            <option value="arrived" ${b.status === "arrived" ? "selected" : ""}>Arrived</option>
+            <option value="in-progress" ${b.status === "in-progress" ? "selected" : ""}>In Progress</option>
             <option value="completed" ${b.status === "completed" ? "selected" : ""}>Completed</option>
             <option value="cancelled" ${b.status === "cancelled" ? "selected" : ""}>Cancelled</option>
           </select>
-          <button data-action="view-booking" data-id="${b.id}" class="focus-outline text-[10px] px-2 py-[2px] rounded-full bg-white text-slate-700 border border-slate-300 hover:border-blue-500 hover:text-blue-600">View</button>
-          <button data-action="edit-booking" data-id="${b.id}" class="focus-outline text-[10px] px-2 py-[2px] rounded-full bg-white text-slate-700 border border-slate-300 hover:border-teal-500 hover:text-teal-600">Edit</button>
-          <button data-action="delete-booking" data-id="${b.id}" class="focus-outline text-[10px] px-2 py-[2px] rounded-full bg-white text-slate-600 border border-slate-300 hover:border-red-500 hover:text-red-600">Delete</button>
+          <button data-action="view-booking" data-id="${b.id}" class="focus-outline w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 border border-slate-200 hover:bg-purple-500 hover:text-white transition-all">👁️</button>
+          <button data-action="edit-booking" data-id="${b.id}" class="focus-outline w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 border border-slate-200 hover:bg-teal-500 hover:text-white transition-all">✏️</button>
+          <button data-action="delete-booking" data-id="${b.id}" class="focus-outline w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 border border-slate-200 hover:bg-red-500 hover:text-white transition-all">🗑️</button>
         </div>
       </td>
     </tr>`;
@@ -1546,7 +1691,7 @@ async function renderBookingsPage() {
           </table>
         </div>
       </div>
-      <!-- Booking Details Modal -->
+      <!--Booking Details Modal-- >
       <div id="booking-details-modal" class="hidden fixed inset-0 flex items-center justify-center z-50">
         <div class="modal-backdrop absolute inset-0 bg-black/30 backdrop-blur-sm" id="booking-details-backdrop"></div>
         <div class="relative w-full max-w-lg max-h-[90vh] rounded-2xl bg-white border border-slate-200 shadow-2xl mx-4 flex flex-col">
@@ -1610,11 +1755,12 @@ async function renderBookingsPage() {
                 <input id="booking-vehicle-year" type="number" min="1900" max="2030" placeholder="e.g., 2020" class="focus-outline text-xs px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800" />
               </div>
               <div class="flex flex-col gap-1">
-                <label for="booking-status" class="text-[11px] text-slate-600 font-medium">Status</label>
-                <select id="booking-status" class="focus-outline text-xs px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800">
+                <label for="booking-status" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Appointment Status</label>
+                <select id="booking-status" class="focus-outline text-xs px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800">
                   <option value="scheduled">Scheduled</option>
                   <option value="pending">Pending</option>
-                  <option value="in_progress">In Progress</option>
+                  <option value="arrived">Arrived</option>
+                  <option value="in-progress">In Progress</option>
                   <option value="completed">Completed</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
@@ -1634,7 +1780,7 @@ async function renderBookingsPage() {
           </form>
         </div>
       </div>
-    </section>`;
+    </section > `;
 
   attachBookingHandlers();
 }
@@ -1686,10 +1832,10 @@ function attachBookingHandlers() {
       document.getElementById('btn-done-booking-details').onclick = closeModal;
       document.getElementById('booking-details-backdrop').onclick = closeModal;
 
-      modalId.textContent = `Booking #${booking.id.substring(0, 8)}`;
+      modalId.textContent = `Booking #${booking.id.substring(0, 8)} `;
 
       const vehicleInfo = booking.vehicle_info || {};
-      const vehicleString = `${vehicleInfo.year || ''} ${vehicleInfo.make || ''} ${vehicleInfo.model || ''}`.trim() || 'N/A';
+      const vehicleString = `${vehicleInfo.year || ''} ${vehicleInfo.make || ''} ${vehicleInfo.model || ''} `.trim() || 'N/A';
 
       // 1. Fetch Included Parts if service_type_id exists
       let partsHtml = '';
@@ -1706,24 +1852,24 @@ function attachBookingHandlers() {
             partsTotal += lineTotal;
 
             return `
-                      <div class="flex items-center justify-between py-1 border-b border-slate-50 last:border-0 text-xs">
+            <div class="flex items-center justify-between py-1 border-b border-slate-50 last:border-0 text-xs">
                           <span class="text-slate-700 font-medium">${prodName}</span>
                           <div class="text-right">
                             <span class="text-slate-500 text-[10px] mr-1">${sp.quantity} x ${formatCurrency(price)}</span>
                             <span class="text-slate-700 font-medium">${formatCurrency(lineTotal)}</span>
                           </div>
                       </div>
-                  `;
+    `;
           }).join('');
 
           partsHtml = `
-                  <div class="mt-3 bg-slate-50 rounded-lg border border-slate-100 p-3">
+          <div class="mt-3 bg-slate-50 rounded-lg border border-slate-100 p-3">
                       <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">Included Parts</span>
                       <div class="flex flex-col gap-1">
                           ${partsList}
                       </div>
                   </div>
-              `;
+    `;
         }
       }
 
@@ -1757,53 +1903,53 @@ function attachBookingHandlers() {
                   <span>${formatCurrency(total)}</span>
               </div>
           </div>
-      `;
+    `;
 
       modalContent.innerHTML = `
-          <div class="p-3 bg-purple-50 rounded-xl border border-purple-100 mb-2">
-              <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-xl shadow-sm border border-purple-100">
-                      ${booking.service_type === 'Oil Change' ? '🛢️' : '🔧'}
-                  </div>
-                  <div>
-                      <p class="text-sm font-bold text-slate-800">${booking.service_type}</p>
-                      <p class="text-xs text-slate-500">${new Date(booking.scheduled_date).toLocaleString()}</p>
-                  </div>
-              </div>
+    <div class="p-3 bg-purple-50 rounded-xl border border-purple-100 mb-2">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-xl shadow-sm border border-purple-100">
+          ${booking.service_type === 'Oil Change' ? '🛢️' : '🔧'}
+        </div>
+        <div>
+          <p class="text-sm font-bold text-slate-800">${booking.service_type}</p>
+          <p class="text-xs text-slate-500">${new Date(booking.scheduled_date).toLocaleString()}</p>
+        </div>
+      </div>
           </div>
 
-          <div class="space-y-3">
-              <div class="flex justify-between items-start border-b border-slate-100 pb-2">
-                  <span class="text-xs font-medium text-slate-500">Customer</span>
-                  <div class="text-right">
-                      <p class="text-sm font-medium text-slate-800">${booking.profile?.full_name || 'Guest'}</p>
-                      <p class="text-xs text-slate-500">${booking.profile?.phone || booking.profile?.email || 'N/A'}</p>
-                  </div>
-              </div>
-              
-              <div class="flex justify-between items-start border-b border-slate-100 pb-2">
-                  <span class="text-xs font-medium text-slate-500">Vehicle</span>
-                  <span class="text-sm font-medium text-slate-800">${vehicleString}</span>
-              </div>
-              
-              <div class="flex justify-between items-start border-b border-slate-100 pb-2">
-                  <span class="text-xs font-medium text-slate-500">Status</span>
-                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 capitalize">
-                      ${booking.status}
-                  </span>
-              </div>
+    <div class="space-y-3">
+      <div class="flex justify-between items-start border-b border-slate-100 pb-2">
+        <span class="text-xs font-medium text-slate-500">Customer</span>
+        <div class="text-right">
+          <p class="text-sm font-medium text-slate-800">${booking.profile?.full_name || 'Guest'}</p>
+          <p class="text-xs text-slate-500">${booking.profile?.phone || booking.profile?.email || 'N/A'}</p>
+        </div>
+      </div>
 
-              ${partsHtml}
-              ${summaryHtml}
+      <div class="flex justify-between items-start border-b border-slate-100 pb-2">
+        <span class="text-xs font-medium text-slate-500">Vehicle</span>
+        <span class="text-sm font-medium text-slate-800">${vehicleString}</span>
+      </div>
 
-              <div>
-                  <span class="text-xs font-medium text-slate-500 block mb-1">Notes</span>
-                  <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 text-sm text-slate-600 min-h-[60px]">
-                      ${booking.notes || 'No significant notes.'}
-                  </div>
-              </div>
-          </div>
-      `;
+      <div class="flex justify-between items-start border-b border-slate-100 pb-2">
+        <span class="text-xs font-medium text-slate-500">Status</span>
+        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 capitalize">
+          ${booking.status}
+        </span>
+      </div>
+
+      ${partsHtml}
+      ${summaryHtml}
+
+      <div>
+        <span class="text-xs font-medium text-slate-500 block mb-1">Notes</span>
+        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 text-sm text-slate-600 min-h-[60px]">
+          ${booking.notes || 'No significant notes.'}
+        </div>
+      </div>
+    </div>
+  `;
 
       modal.classList.remove('hidden');
 
@@ -1885,7 +2031,11 @@ async function renderServiceTypesPage() {
   const main = document.getElementById("main-content");
   if (!main) return;
 
-  main.innerHTML = '<div class="w-full h-full flex items-center justify-center"><p class="text-slate-500">Loading service types...</p></div>';
+  main.innerHTML = `
+    <div class="w-full h-full flex flex-col items-center justify-center gap-3">
+      <div class="spinner"></div>
+      <p class="text-xs text-slate-500 font-medium">Loading Service Types...</p>
+    </div>`;
 
   const [serviceTypes, products] = await Promise.all([
     DatabaseService.getServiceTypes(),
@@ -2009,7 +2159,7 @@ async function renderServiceTypesPage() {
           </form>
         </div>
       </div>
-    </section>`;
+    </section > `;
 
   attachServiceTypeHandlers();
 }
@@ -2036,12 +2186,12 @@ function attachServiceTypeHandlers() {
         const div = document.createElement('div');
         div.className = "flex items-center justify-between gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200";
         div.innerHTML = `
-                <span class="text-xs text-slate-700 truncate flex-1">${part.name}</span>
-                <div class="flex items-center gap-2">
-                    <input type="number" min="1" value="${part.quantity || 1}" class="w-12 text-center text-xs p-1 rounded border border-slate-300" onchange="window.updatePartQuantity(${index}, this.value)">
-                    <button type="button" onclick="window.removeServicePart(${index})" class="text-red-500 hover:text-red-700 text-lg leading-none">×</button>
-                </div>
-             `;
+    <span class="text-xs text-slate-700 truncate flex-1">${part.name}</span>
+      <div class="flex items-center gap-2">
+        <input type="number" min="1" value="${part.quantity || 1}" class="w-12 text-center text-xs p-1 rounded border border-slate-300" onchange="window.updatePartQuantity(${index}, this.value)">
+          <button type="button" onclick="window.removeServicePart(${index})" class="text-red-500 hover:text-red-700 text-lg leading-none">×</button>
+      </div>
+  `;
         container.appendChild(div);
       });
     }
@@ -2201,14 +2351,14 @@ function attachServiceTypeHandlers() {
 /* NAVIGATION */
 /* ========================================== */
 
-function setActivePage(pageKey) {
+async function setActivePage(pageKey) {
   document.querySelectorAll(".nav-link").forEach(btn => {
     if (btn.dataset.page === pageKey) {
-      btn.classList.add("bg-slate-100", "text-slate-900");
-      btn.classList.remove("text-slate-600");
+      btn.classList.add("bg-orange-50", "text-orange-600", "border-l-4", "border-orange-500", "pl-2");
+      btn.classList.remove("text-slate-600", "px-3");
     } else {
-      btn.classList.remove("bg-slate-100", "text-slate-900");
-      btn.classList.add("text-slate-600");
+      btn.classList.remove("bg-orange-50", "text-orange-600", "border-l-4", "border-orange-500", "pl-2");
+      btn.classList.add("text-slate-600", "px-3");
     }
   });
 
@@ -2222,8 +2372,8 @@ function setActivePage(pageKey) {
     users: renderUsersPage
   };
 
-  pages[pageKey]?.();
-  return pages[pageKey]?.();
+  await pages[pageKey]?.();
+  window.scrollTo(0, 0);
 }
 
 function attachSidebarNav() {
@@ -2286,7 +2436,7 @@ document.addEventListener('DOMContentLoaded', async function init() {
 
     // Show dashboard
     console.log('Setting active page to dashboard...');
-    setActivePage("dashboard");
+    await setActivePage("dashboard");
 
   } catch (error) {
     console.error('CRITICAL INITIALIZATION ERROR:', error);
