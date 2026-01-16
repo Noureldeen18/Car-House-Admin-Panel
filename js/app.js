@@ -1940,10 +1940,35 @@ async function renderOrdersPage() {
     const select = e.target.closest('select[data-order-id]');
     if (!select) return;
 
-    const result = await DatabaseService.updateOrderStatus(select.dataset.orderId, select.value);
+    const newStatus = select.value;
+    const result = await DatabaseService.updateOrderStatus(select.dataset.orderId, newStatus);
     if (!result.success) {
       alert('Failed to update: ' + result.error);
       renderOrdersPage();
+    } else {
+      // Update the status badge in the same row immediately
+      const row = select.closest('tr');
+      const statusBadge = row.querySelector('td:nth-child(5) span');
+      if (statusBadge) {
+        // Remove all existing status classes
+        statusBadge.className = 'inline-flex items-center px-2 py-[1px] rounded-full border text-[10px] font-bold uppercase tracking-tighter';
+        
+        // Add new status classes
+        if (newStatus === 'pending') {
+          statusBadge.classList.add('border-orange-300', 'text-orange-700', 'bg-orange-50');
+        } else if (newStatus === 'shipped') {
+          statusBadge.classList.add('border-teal-300', 'text-teal-700', 'bg-teal-50');
+        } else if (newStatus === 'delivered') {
+          statusBadge.classList.add('border-green-300', 'text-green-700', 'bg-green-50');
+        } else {
+          statusBadge.classList.add('border-slate-300', 'text-slate-600', 'bg-slate-50');
+        }
+        
+        // Update status text
+        statusBadge.textContent = newStatus;
+      }
+      
+      showToast(`Order status updated to ${newStatus}`, 'success');
     }
   });
 
@@ -2620,10 +2645,42 @@ function attachBookingHandlers(bookings = []) {
   tbody?.addEventListener('change', async (e) => {
     const select = e.target.closest('select[data-action="change-status"]');
     if (!select) return;
-    const result = await DatabaseService.updateBookingStatus(select.dataset.bookingId, select.value);
+    
+    const newStatus = select.value;
+    const result = await DatabaseService.updateBookingStatus(select.dataset.bookingId, newStatus);
     if (!result.success) {
       alert('Failed to update status: ' + result.error);
       renderBookingsPage();
+    } else {
+      // Update the status badge in the same row immediately
+      const row = select.closest('tr');
+      const statusBadge = row.querySelector('td:nth-child(5) span');
+      if (statusBadge) {
+        // Remove all existing status classes
+        statusBadge.className = 'inline-flex items-center px-2 py-[1px] rounded-full border text-[10px] font-bold uppercase tracking-tighter';
+        
+        // Add new status classes based on the new status
+        if (newStatus === 'scheduled') {
+          statusBadge.classList.add('border-blue-300', 'text-blue-700', 'bg-blue-50');
+        } else if (newStatus === 'pending') {
+          statusBadge.classList.add('border-orange-300', 'text-orange-700', 'bg-orange-50');
+        } else if (newStatus === 'arrived') {
+          statusBadge.classList.add('border-teal-300', 'text-teal-700', 'bg-teal-50');
+        } else if (newStatus === 'in-progress') {
+          statusBadge.classList.add('border-purple-300', 'text-purple-700', 'bg-purple-50');
+        } else if (newStatus === 'completed') {
+          statusBadge.classList.add('border-green-300', 'text-green-700', 'bg-green-50');
+        } else if (newStatus === 'cancelled') {
+          statusBadge.classList.add('border-red-300', 'text-red-700', 'bg-red-50');
+        } else {
+          statusBadge.classList.add('border-slate-300', 'text-slate-600', 'bg-slate-50');
+        }
+        
+        // Update status text
+        statusBadge.textContent = newStatus;
+      }
+      
+      showToast(`Booking status updated to ${newStatus}`, 'success');
     }
   });
 
