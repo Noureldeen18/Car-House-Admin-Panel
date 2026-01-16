@@ -40,7 +40,7 @@ export const BOOKING_STATUS = {
 export const USER_ROLES = {
   CUSTOMER: 'customer',
   ADMIN: 'admin',
-  SUPER_ADMIN: 'superadmin'
+  // SUPER_ADMIN removed - only admin and customer roles supported
 };
 
 // Storage buckets

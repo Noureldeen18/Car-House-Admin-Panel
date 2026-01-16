@@ -28,6 +28,52 @@ const config = {
 /* ========================================== */
 
 /**
+ * Simple cache for frequently accessed data
+ */
+const DataCache = {
+  categories: null,
+  serviceTypes: null,
+  categoriesTimestamp: 0,
+  serviceTypesTimestamp: 0,
+  CACHE_DURATION: 5 * 60 * 1000, // 5 minutes
+  
+  isValid(timestamp) {
+    return Date.now() - timestamp < this.CACHE_DURATION;
+  },
+  
+  getCategories() {
+    if (this.categories && this.isValid(this.categoriesTimestamp)) {
+      return this.categories;
+    }
+    return null;
+  },
+  
+  setCategories(data) {
+    this.categories = data;
+    this.categoriesTimestamp = Date.now();
+  },
+  
+  getServiceTypes() {
+    if (this.serviceTypes && this.isValid(this.serviceTypesTimestamp)) {
+      return this.serviceTypes;
+    }
+    return null;
+  },
+  
+  setServiceTypes(data) {
+    this.serviceTypes = data;
+    this.serviceTypesTimestamp = Date.now();
+  },
+  
+  clear() {
+    this.categories = null;
+    this.serviceTypes = null;
+    this.categoriesTimestamp = 0;
+    this.serviceTypesTimestamp = 0;
+  }
+};
+
+/**
  * Formats a number as currency (EGP)
  * @param {number} value - The numeric value to format
  * @returns {string} Formatted currency string
@@ -49,6 +95,347 @@ function formatDate(dateString) {
     day: 'numeric'
   });
 }
+
+/**
+ * Show toast notification
+ * @param {string} message - Message to display
+ * @param {string} type - 'success', 'error', 'warning', 'info'
+ * @param {number} duration - Duration in ms (default 3000)
+ */
+function showToast(message, type = 'info', duration = 3000) {
+  const toast = document.createElement('div');
+  const colors = {
+    success: 'bg-green-500',
+    error: 'bg-red-500',
+    warning: 'bg-orange-500',
+    info: 'bg-blue-500'
+  };
+  
+  toast.className = `fixed top-4 right-4 ${colors[type] || colors.info} text-white px-4 py-3 rounded-lg shadow-lg z-[10000] text-sm font-medium animate-fade-in`;
+  toast.textContent = message;
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s';
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+/**
+ * Validate email format
+ * @param {string} email - Email to validate
+ * @returns {boolean} True if valid
+ */
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+/**
+ * Validate phone number (Egyptian format)
+ * @param {string} phone - Phone to validate
+ * @returns {boolean} True if valid
+ */
+function isValidPhone(phone) {
+  return /^(\+20)?0?1[0125]\d{8}$/.test(phone.replace(/\s/g, ''));
+}
+
+/**
+ * Rate limiter to prevent spam submissions
+ */
+const RateLimiter = {
+  lastCalls: {},
+  
+  canCall(key, minInterval = 1000) {
+    const now = Date.now();
+    const lastCall = this.lastCalls[key] || 0;
+    
+    if (now - lastCall < minInterval) {
+      return false;
+    }
+    
+    this.lastCalls[key] = now;
+    return true;
+  },
+  
+  reset(key) {
+    delete this.lastCalls[key];
+  }
+};
+
+/**
+ * Debounce function for search inputs
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Wait time in ms
+ * @returns {Function} Debounced function
+ */
+function debounce(func, wait = 300) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+/**
+ * Retry async operation with exponential backoff
+ * @param {Function} fn - Async function to retry
+ * @param {number} maxRetries - Maximum retry attempts
+ * @param {number} delay - Initial delay in ms
+ * @returns {Promise} Result of the operation
+ */
+async function retryWithBackoff(fn, maxRetries = 3, delay = 1000) {
+  let lastError;
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (i < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+      }
+    }
+  }
+  
+  throw lastError;
+}
+
+/**
+ * Show loading overlay
+ */
+function showLoading(message = 'Loading...') {
+  let overlay = document.getElementById('loading-overlay');
+  
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'loading-overlay';
+    overlay.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]';
+    overlay.innerHTML = `
+      <div class="bg-white rounded-lg p-6 shadow-xl flex flex-col items-center gap-3">
+        <div class="spinner"></div>
+        <p class="text-sm text-slate-700 font-medium" id="loading-message">${message}</p>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  } else {
+    overlay.classList.remove('hidden');
+    document.getElementById('loading-message').textContent = message;
+  }
+}
+
+/**
+ * Hide loading overlay
+ */
+function hideLoading() {
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) {
+    overlay.classList.add('hidden');
+  }
+}
+
+/**
+ * Show confirmation dialog
+ * @param {string} title - Dialog title
+ * @param {string} message - Dialog message
+ * @param {string} confirmText - Confirm button text
+ * @param {string} type - Dialog type: 'danger', 'warning', 'info'
+ * @returns {Promise<boolean>} True if confirmed
+ */
+function confirmDialog(title, message, confirmText = 'Confirm', type = 'warning') {
+  return new Promise((resolve) => {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4';
+    
+    const colors = {
+      danger: 'bg-red-500 hover:bg-red-600',
+      warning: 'bg-orange-500 hover:bg-orange-600',
+      info: 'bg-blue-500 hover:bg-blue-600'
+    };
+    
+    const icons = {
+      danger: '⚠️',
+      warning: '⚠️',
+      info: 'ℹ️'
+    };
+    
+    modal.innerHTML = `
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="text-3xl">${icons[type] || icons.warning}</span>
+          <h3 class="text-lg font-bold text-slate-800">${title}</h3>
+        </div>
+        <p class="text-sm text-slate-600 mb-6">${message}</p>
+        <div class="flex gap-3 justify-end">
+          <button id="cancel-btn" class="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-sm font-medium">
+            Cancel
+          </button>
+          <button id="confirm-btn" class="px-4 py-2 rounded-lg ${colors[type] || colors.warning} text-white text-sm font-medium shadow-lg">
+            ${confirmText}
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    modal.querySelector('#cancel-btn').onclick = () => {
+      modal.remove();
+      resolve(false);
+    };
+    
+    modal.querySelector('#confirm-btn').onclick = () => {
+      modal.remove();
+      resolve(true);
+    };
+    
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        modal.remove();
+        resolve(false);
+      }
+    };
+  });
+}
+
+/**
+ * Export data to CSV
+ * @param {Array} data - Array of objects to export
+ * @param {string} filename - Filename without extension
+ * @param {Array} columns - Column definitions [{key, label}]
+ */
+function exportToCSV(data, filename, columns = null) {
+  if (!data || data.length === 0) {
+    showToast('No data to export', 'warning');
+    return;
+  }
+  
+  // Auto-detect columns if not provided
+  if (!columns) {
+    const keys = Object.keys(data[0]);
+    columns = keys.map(key => ({ key, label: key }));
+  }
+  
+  // Create CSV header
+  const header = columns.map(col => col.label).join(',');
+  
+  // Create CSV rows
+  const rows = data.map(item => {
+    return columns.map(col => {
+      let value = item[col.key];
+      
+      // Handle nested objects
+      if (typeof value === 'object' && value !== null) {
+        value = JSON.stringify(value);
+      }
+      
+      // Escape quotes and wrap in quotes if contains comma
+      value = String(value || '').replace(/"/g, '""');
+      if (value.includes(',') || value.includes('\n')) {
+        value = `"${value}"`;
+      }
+      
+      return value;
+    }).join(',');
+  });
+  
+  // Combine header and rows
+  const csv = [header, ...rows].join('\n');
+  
+  // Create download link
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  showToast('Export successful!', 'success');
+}
+
+/**
+ * Dark mode toggle
+ */
+const DarkMode = {
+  enabled: false,
+  
+  init() {
+    this.enabled = localStorage.getItem('dark-mode') === 'true';
+    if (this.enabled) {
+      this.apply();
+    }
+  },
+  
+  toggle() {
+    this.enabled = !this.enabled;
+    localStorage.setItem('dark-mode', this.enabled);
+    
+    if (this.enabled) {
+      this.apply();
+    } else {
+      this.remove();
+    }
+  },
+  
+  apply() {
+    document.documentElement.classList.add('dark');
+    document.body.classList.add('bg-slate-900', 'text-slate-100');
+    document.body.classList.remove('bg-slate-50', 'text-slate-800');
+  },
+  
+  remove() {
+    document.documentElement.classList.remove('dark');
+    document.body.classList.remove('bg-slate-900', 'text-slate-100');
+    document.body.classList.add('bg-slate-50', 'text-slate-800');
+  }
+};
+
+/**
+ * Keyboard shortcuts handler
+ */
+const KeyboardShortcuts = {
+  shortcuts: {},
+  
+  init() {
+    document.addEventListener('keydown', (e) => {
+      const key = this.getKeyCombo(e);
+      const handler = this.shortcuts[key];
+      
+      if (handler) {
+        e.preventDefault();
+        handler();
+      }
+    });
+  },
+  
+  getKeyCombo(e) {
+    const parts = [];
+    if (e.ctrlKey) parts.push('ctrl');
+    if (e.altKey) parts.push('alt');
+    if (e.shiftKey) parts.push('shift');
+    parts.push(e.key.toLowerCase());
+    return parts.join('+');
+  },
+  
+  register(combo, handler, description = '') {
+    this.shortcuts[combo] = handler;
+    console.log(`Keyboard shortcut registered: ${combo} - ${description}`);
+  },
+  
+  unregister(combo) {
+    delete this.shortcuts[combo];
+  }
+};
 
 /**
  * Update rating display with stars
@@ -97,6 +484,58 @@ function calculateTotalWithTax(subtotal) {
 }
 
 /* ========================================== */
+/* OFFLINE SUPPORT */
+/* ========================================== */
+
+const OfflineManager = {
+  isOnline: navigator.onLine,
+  queue: [],
+  
+  init() {
+    window.addEventListener('online', () => {
+      this.isOnline = true;
+      showToast('Connection restored', 'success');
+      this.processQueue();
+    });
+    
+    window.addEventListener('offline', () => {
+      this.isOnline = false;
+      showToast('You are offline. Changes will sync when connection is restored.', 'warning', 5000);
+    });
+    
+    // Register service worker for offline support
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(err => {
+        console.log('Service worker registration failed:', err);
+      });
+    }
+  },
+  
+  addToQueue(operation) {
+    this.queue.push({
+      operation,
+      timestamp: Date.now()
+    });
+    localStorage.setItem('offline-queue', JSON.stringify(this.queue));
+  },
+  
+  async processQueue() {
+    const queue = JSON.parse(localStorage.getItem('offline-queue') || '[]');
+    
+    for (const item of queue) {
+      try {
+        await item.operation();
+      } catch (error) {
+        console.error('Failed to process queued operation:', error);
+      }
+    }
+    
+    this.queue = [];
+    localStorage.removeItem('offline-queue');
+  }
+};
+
+/* ========================================== */
 /* BASE LAYOUT CREATION */
 /* ========================================== */
 
@@ -137,6 +576,11 @@ function createBaseLayout() {
     </div>
     <div class="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-slate-600">
       <span class="hidden sm:inline" id="user-name">Admin</span>
+      <button id="dark-mode-toggle" class="focus-outline p-2 rounded-lg hover:bg-slate-100" title="Toggle dark mode (Ctrl+D)">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+        </svg>
+      </button>
       <button id="logout-btn" class="focus-outline px-2 sm:px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-[11px] sm:text-xs text-slate-700 hover:border-orange-500 hover:text-orange-600 shadow-sm">
         Logout
       </button>
@@ -229,8 +673,26 @@ function createBaseLayout() {
 
   // Attach logout handler
   document.getElementById('logout-btn').addEventListener('click', async () => {
-    await AuthService.logout();
-    window.location.href = 'login.html';
+    const confirmed = await confirmDialog(
+      'Confirm Logout',
+      'Are you sure you want to logout?',
+      'Logout',
+      'info'
+    );
+    
+    if (confirmed) {
+      showLoading('Logging out...');
+      await AuthService.logout();
+      DataCache.clear();
+      hideLoading();
+      window.location.href = 'login.html';
+    }
+  });
+  
+  // Dark mode toggle handler
+  document.getElementById('dark-mode-toggle')?.addEventListener('click', () => {
+    DarkMode.toggle();
+    showToast(`Dark mode ${DarkMode.enabled ? 'enabled' : 'disabled'}`, 'info');
   });
 
   // Mobile menu toggle
@@ -367,73 +829,130 @@ async function renderDashboard() {
         </article>
       </div>
 
-      <!-- Quick Actions -->
-      <div class="mt-4">
-        <h3 class="text-sm font-semibold text-slate-800 mb-3">Quick Actions</h3>
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <button data-quick-action="products" data-target-btn="btn-add-product" class="focus-outline flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-orange-400 hover:shadow-md transition-all group text-slate-600 hover:text-orange-600">
-            <div class="w-10 h-10 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">＋</div>
-            <span class="text-xs font-medium">Add Product</span>
-          </button>
+      <!-- Recent Activity & Insights -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        <!-- Sales Overview -->
+        <article class="card-elevated rounded-xl bg-white border border-slate-200 px-4 py-4 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-slate-800">Sales Overview</h3>
+            <span class="text-xs px-2 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">Performance</span>
+          </div>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-500">Completed Orders</p>
+                <p class="text-lg font-semibold text-slate-800 mt-1">${stats.completedOrders || 0}</p>
+              </div>
+              <div class="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center">
+                <span class="text-xl">✓</span>
+              </div>
+            </div>
+            <div class="h-px bg-slate-100"></div>
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-500">Pending Orders</p>
+                <p class="text-lg font-semibold text-slate-800 mt-1">${stats.pendingOrders || 0}</p>
+              </div>
+              <div class="w-12 h-12 rounded-full bg-yellow-50 flex items-center justify-center">
+                <span class="text-xl">⏳</span>
+              </div>
+            </div>
+            <div class="h-px bg-slate-100"></div>
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-500">Average Order Value</p>
+                <p class="text-lg font-semibold text-slate-800 mt-1">${formatCurrency(stats.totalOrders > 0 ? stats.totalRevenue / stats.totalOrders : 0)}</p>
+              </div>
+              <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
+                <span class="text-xl">💰</span>
+              </div>
+            </div>
+          </div>
+        </article>
 
-          <button data-quick-action="categories" data-target-btn="btn-add-category" class="focus-outline flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-teal-400 hover:shadow-md transition-all group text-slate-600 hover:text-teal-600">
-            <div class="w-10 h-10 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">＋</div>
-            <span class="text-xs font-medium">Add Category</span>
-          </button>
+        <!-- Service Center Activity -->
+        <article class="card-elevated rounded-xl bg-white border border-slate-200 px-4 py-4 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-slate-800">Service Center Activity</h3>
+            <span class="text-xs px-2 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">Workshop</span>
+          </div>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-500">Total Bookings</p>
+                <p class="text-lg font-semibold text-slate-800 mt-1">${stats.totalBookings || 0}</p>
+              </div>
+              <div class="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center">
+                <span class="text-xl">📅</span>
+              </div>
+            </div>
+            <div class="h-px bg-slate-100"></div>
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-500">Pending Appointments</p>
+                <p class="text-lg font-semibold text-slate-800 mt-1">${stats.pendingBookings || 0}</p>
+              </div>
+              <div class="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center">
+                <span class="text-xl">🔧</span>
+              </div>
+            </div>
+            <div class="h-px bg-slate-100"></div>
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-500">Service Types Available</p>
+                <p class="text-lg font-semibold text-slate-800 mt-1">${stats.totalServiceTypes || 0}</p>
+              </div>
+              <div class="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center">
+                <span class="text-xl">⚙️</span>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
 
-          <button data-quick-action="service-types" data-target-btn="btn-add-service" class="focus-outline flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group text-slate-600 hover:text-indigo-600">
-            <div class="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">＋</div>
-            <span class="text-xs font-medium">Add Service</span>
-          </button>
+      <!-- Inventory & Customer Insights -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+        <article class="card-elevated rounded-xl bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 px-4 py-4 shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl shadow-sm">
+              📦
+            </div>
+            <div>
+              <p class="text-xs text-orange-700 font-medium">Inventory Status</p>
+              <p class="text-2xl font-bold text-orange-900 mt-1">${stats.totalProducts}</p>
+              <p class="text-[11px] text-orange-600 mt-1">Products in stock</p>
+            </div>
+          </div>
+        </article>
 
-          <button data-quick-action="bookings" data-target-btn="btn-add-booking" class="focus-outline flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-purple-400 hover:shadow-md transition-all group text-slate-600 hover:text-purple-600">
-            <div class="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">＋</div>
-            <span class="text-xs font-medium">Add Booking</span>
-          </button>
+        <article class="card-elevated rounded-xl bg-gradient-to-br from-teal-50 to-teal-100 border border-teal-200 px-4 py-4 shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl shadow-sm">
+              👥
+            </div>
+            <div>
+              <p class="text-xs text-teal-700 font-medium">Customer Base</p>
+              <p class="text-2xl font-bold text-teal-900 mt-1">${stats.totalUsers || 0}</p>
+              <p class="text-[11px] text-teal-600 mt-1">Registered users</p>
+            </div>
+          </div>
+        </article>
 
-          <button data-quick-action="users" data-target-btn="btn-add-user" class="focus-outline flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-blue-400 hover:shadow-md transition-all group text-slate-600 hover:text-blue-600">
-            <div class="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">＋</div>
-            <span class="text-xs font-medium">Add User</span>
-          </button>
-
-          <button data-quick-action="users" data-action-type="delete" class="focus-outline flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-red-400 hover:shadow-md transition-all group text-slate-600 hover:text-red-600">
-            <div class="w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">🗑️</div>
-            <span class="text-xs font-medium">Delete User</span>
-          </button>
-        </div>
+        <article class="card-elevated rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 px-4 py-4 shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl shadow-sm">
+              ⭐
+            </div>
+            <div>
+              <p class="text-xs text-amber-700 font-medium">Customer Satisfaction</p>
+              <p class="text-2xl font-bold text-amber-900 mt-1">${stats.averageRating || '0.0'}</p>
+              <p class="text-[11px] text-amber-600 mt-1">${stats.totalReviews || 0} reviews</p>
+            </div>
+          </div>
+        </article>
       </div>
     </section>
   `;
-
-  attachDashboardHandlers();
-}
-
-function attachDashboardHandlers() {
-  document.querySelectorAll('button[data-quick-action]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      // Navigate to the target page
-      await setActivePage(btn.dataset.quickAction);
-
-      // If a target button is defined (e.g., 'btn-add-product'), click it
-      if (btn.dataset.targetBtn) {
-        // Wait briefly for DOM info if needed, though await setActivePage() should be enough
-        setTimeout(() => {
-          const target = document.getElementById(btn.dataset.targetBtn);
-          if (target) {
-            target.click();
-          } else {
-            console.warn('Target button not found:', btn.dataset.targetBtn);
-          }
-        }, 100);
-      }
-
-      // Handle special cases without specific buttons if needed
-      if (btn.dataset.actionType === 'delete') {
-        // Current implementation just goes to the users page
-        // Could assume the user will simply click 'Block' or 'Delete' (if implemented) there.
-      }
-    });
-  });
 }
 
 /* ========================================== */
@@ -457,7 +976,25 @@ async function renderProductsPage() {
     DatabaseService.getCategories()
   ]);
 
-  const rowsHtml = products.map(p => {
+  // Sort products (only once)
+  const sortBy = localStorage.getItem('products-sort') || 'name-asc';
+  const sortedProducts = [...products].sort((a, b) => {
+    switch(sortBy) {
+      case 'name-asc': return (a.name || '').localeCompare(b.name || '');
+      case 'name-desc': return (b.name || '').localeCompare(a.name || '');
+      case 'price-asc': return (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0);
+      case 'price-desc': return (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0);
+      case 'rating-asc': return (parseFloat(a.rating) || 0) - (parseFloat(b.rating) || 0);
+      case 'rating-desc': return (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0);
+      case 'stock-asc': return (parseInt(a.stock) || 0) - (parseInt(b.stock) || 0);
+      case 'stock-desc': return (parseInt(b.stock) || 0) - (parseInt(a.stock) || 0);
+      case 'category-asc': return (a.category?.name || 'ZZZ').localeCompare(b.category?.name || 'ZZZ');
+      case 'category-desc': return (b.category?.name || 'ZZZ').localeCompare(a.category?.name || 'ZZZ');
+      default: return 0;
+    }
+  });
+
+  const rowsHtml = sortedProducts.map(p => {
     const rating = p.rating || 0;
     const stars = '★'.repeat(Math.floor(rating)) + '☆'.repeat(5 - Math.floor(rating));
 
@@ -530,22 +1067,39 @@ async function renderProductsPage() {
     <option value="${c.id}">${c.name}</option>
   `).join("");
 
+  // Set main content with complete HTML structure
   main.innerHTML = `
     <section class="w-full h-full px-4 sm:px-6 py-4 flex flex-col gap-4 fade-in">
+      <!-- Header Section -->
       <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 class="text-base sm:text-lg font-semibold tracking-tight text-slate-800">${config.products_title}</h2>
+          <h2 class="text-base sm:text-lg font-semibold tracking-tight text-slate-800">Products</h2>
           <p class="text-[11px] sm:text-xs text-slate-500 mt-1">Manage car spare parts inventory, prices and compatibility.</p>
         </div>
-        <button id="btn-add-product" class="focus-outline inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-500 text-white text-xs sm:text-sm font-semibold shadow-md hover:bg-orange-600">
-          <span class="text-sm">＋</span>
-          <span>Add product</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <select id="products-sort" class="focus-outline bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm cursor-pointer hover:border-orange-500">
+            <option value="name-asc" ${sortBy === 'name-asc' ? 'selected' : ''}>Name (A-Z)</option>
+            <option value="name-desc" ${sortBy === 'name-desc' ? 'selected' : ''}>Name (Z-A)</option>
+            <option value="price-asc" ${sortBy === 'price-asc' ? 'selected' : ''}>Price (Low-High)</option>
+            <option value="price-desc" ${sortBy === 'price-desc' ? 'selected' : ''}>Price (High-Low)</option>
+            <option value="rating-asc" ${sortBy === 'rating-asc' ? 'selected' : ''}>Rating (Low-High)</option>
+            <option value="rating-desc" ${sortBy === 'rating-desc' ? 'selected' : ''}>Rating (High-Low)</option>
+            <option value="stock-asc" ${sortBy === 'stock-asc' ? 'selected' : ''}>Stock (Low-High)</option>
+            <option value="stock-desc" ${sortBy === 'stock-desc' ? 'selected' : ''}>Stock (High-Low)</option>
+            <option value="category-asc" ${sortBy === 'category-asc' ? 'selected' : ''}>Category (A-Z)</option>
+            <option value="category-desc" ${sortBy === 'category-desc' ? 'selected' : ''}>Category (Z-A)</option>
+          </select>
+          <button id="btn-add-product" class="focus-outline inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-500 text-white text-xs sm:text-sm font-semibold shadow-md hover:bg-orange-600">
+            <span class="text-sm">＋</span>
+            <span>Add product</span>
+          </button>
+        </div>
       </header>
 
+      <!-- Products Table -->
       <div class="flex-1 min-h-0 rounded-xl bg-white border border-slate-200 overflow-hidden flex flex-col shadow-sm">
         <div class="px-3 sm:px-4 py-2 border-b border-slate-200 bg-slate-50">
-          <p class="text-[11px] sm:text-xs text-slate-500">Showing ${products.length} products</p>
+          <p class="text-[11px] sm:text-xs text-slate-500">Showing ${sortedProducts.length} products</p>
         </div>
 
         <div class="flex-1 overflow-auto app-scrollbar">
@@ -569,6 +1123,7 @@ async function renderProductsPage() {
       </div>
     </section>
 
+    <!-- Product Modal -->
     <div id="product-modal" class="hidden fixed inset-0 flex items-center justify-center z-50">
       <div class="modal-backdrop absolute inset-0 bg-black/40 backdrop-blur-sm" id="modal-backdrop"></div>
       <div class="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl mx-4 app-scrollbar">
@@ -672,6 +1227,15 @@ async function renderProductsPage() {
       </div>
     </div>
   `;
+
+  // Add event listener for sorting dropdown
+  const sortDropdown = document.getElementById('products-sort');
+  if (sortDropdown) {
+    sortDropdown.addEventListener('change', (e) => {
+      localStorage.setItem('products-sort', e.target.value);
+      renderProductsPage();
+    });
+  }
 
   attachProductHandlers();
 }
@@ -830,7 +1394,21 @@ async function renderCategoriesPage() {
 
   const categories = await DatabaseService.getCategories();
 
-  const listHtml = categories.map(c => {
+  // Sort categories
+  const sortBy = localStorage.getItem('categories-sort') || 'name-asc';
+  const sortedCategories = [...categories].sort((a, b) => {
+    switch(sortBy) {
+      case 'name-asc': return (a.name || '').localeCompare(b.name || '');
+      case 'name-desc': return (b.name || '').localeCompare(a.name || '');
+      case 'position-asc': return (parseInt(a.position) || 0) - (parseInt(b.position) || 0);
+      case 'position-desc': return (parseInt(b.position) || 0) - (parseInt(a.position) || 0);
+      case 'active-first': return (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0);
+      case 'inactive-first': return (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0);
+      default: return 0;
+    }
+  });
+
+  const listHtml = sortedCategories.map(c => {
     // Check if icon is a URL (image) or an emoji
     const isImageUrl = c.icon && (c.icon.startsWith('http') || c.icon.startsWith('data:') || c.icon.endsWith('.svg') || c.icon.endsWith('.png') || c.icon.endsWith('.jpg') || c.icon.endsWith('.webp'));
     const iconDisplay = isImageUrl
@@ -865,14 +1443,24 @@ async function renderCategoriesPage() {
           <h2 class="text-base sm:text-lg font-semibold tracking-tight text-slate-800">${config.categories_title}</h2>
           <p class="text-[11px] sm:text-xs text-slate-500 mt-1">Organize spare parts into clear, searchable groups.</p>
         </div>
-        <button id="btn-add-category" class="focus-outline inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-teal-500 text-white text-xs sm:text-sm font-semibold shadow-md hover:bg-teal-600">
-          <span class="text-sm">＋</span>
-          <span>Add category</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <select id="categories-sort" class="focus-outline bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm cursor-pointer hover:border-teal-500">
+            <option value="name-asc" ${sortBy === 'name-asc' ? 'selected' : ''}>Name (A-Z)</option>
+            <option value="name-desc" ${sortBy === 'name-desc' ? 'selected' : ''}>Name (Z-A)</option>
+            <option value="position-asc" ${sortBy === 'position-asc' ? 'selected' : ''}>Position (Low-High)</option>
+            <option value="position-desc" ${sortBy === 'position-desc' ? 'selected' : ''}>Position (High-Low)</option>
+            <option value="active-first" ${sortBy === 'active-first' ? 'selected' : ''}>Active First</option>
+            <option value="inactive-first" ${sortBy === 'inactive-first' ? 'selected' : ''}>Inactive First</option>
+          </select>
+          <button id="btn-add-category" class="focus-outline inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-teal-500 text-white text-xs sm:text-sm font-semibold shadow-md hover:bg-teal-600">
+            <span class="text-sm">＋</span>
+            <span>Add category</span>
+          </button>
+        </div>
       </header>
 
       <div class="flex-1 min-h-0 rounded-xl bg-slate-50 border border-slate-200 p-3 sm:p-4 flex flex-col gap-3">
-        <p class="text-[11px] sm:text-xs text-slate-500">You have ${categories.length} categories.</p>
+        <p class="text-[11px] sm:text-xs text-slate-500">You have ${sortedCategories.length} categories.</p>
         <ul id="categories-list" class="space-y-2 overflow-auto app-scrollbar">
           ${listHtml}
         </ul>
@@ -941,6 +1529,12 @@ async function renderCategoriesPage() {
       </div>
     </section>
     `;
+
+  // Sorting handler
+  document.getElementById('categories-sort')?.addEventListener('change', (e) => {
+    localStorage.setItem('categories-sort', e.target.value);
+    renderCategoriesPage();
+  });
 
   attachCategoryHandlers();
 }
@@ -1067,7 +1661,24 @@ async function renderOrdersPage() {
 
   const orders = await DatabaseService.getOrders();
 
-  const rowsHtml = orders.map(o => {
+  // Sort orders
+  const sortBy = localStorage.getItem('orders-sort') || 'date-newest';
+  const sortedOrders = [...orders].sort((a, b) => {
+    switch(sortBy) {
+      case 'date-newest': return new Date(b.created_at) - new Date(a.created_at);
+      case 'date-oldest': return new Date(a.created_at) - new Date(b.created_at);
+      case 'amount-low': return (parseFloat(a.total || a.total_amount || 0)) - (parseFloat(b.total || b.total_amount || 0));
+      case 'amount-high': return (parseFloat(b.total || b.total_amount || 0)) - (parseFloat(a.total || a.total_amount || 0));
+      case 'status-pending': return (a.status === 'pending' ? -1 : 1) - (b.status === 'pending' ? -1 : 1);
+      case 'status-processing': return (a.status === 'processing' ? -1 : 1) - (b.status === 'processing' ? -1 : 1);
+      case 'status-shipped': return (a.status === 'shipped' ? -1 : 1) - (b.status === 'shipped' ? -1 : 1);
+      case 'status-delivered': return (a.status === 'delivered' ? -1 : 1) - (b.status === 'delivered' ? -1 : 1);
+      case 'status-cancelled': return (a.status === 'cancelled' ? -1 : 1) - (b.status === 'cancelled' ? -1 : 1);
+      default: return 0;
+    }
+  });
+
+  const rowsHtml = sortedOrders.map(o => {
     let badgeClass = "inline-flex items-center px-2 py-[1px] rounded-full border text-[10px]";
     if (o.status === "pending") badgeClass += " border-orange-300 text-orange-700 bg-orange-50";
     else if (o.status === "shipped") badgeClass += " border-teal-300 text-teal-700 bg-teal-50";
@@ -1128,14 +1739,33 @@ async function renderOrdersPage() {
 
   main.innerHTML = `
     <section class="w-full h-full px-4 sm:px-6 py-4 flex flex-col gap-4 fade-in">
-      <header>
-        <h2 class="text-base sm:text-lg font-semibold tracking-tight text-slate-800">${config.orders_title}</h2>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-1">Track order status from pending to delivered.</p>
+      <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 class="text-base sm:text-lg font-semibold tracking-tight text-slate-800">${config.orders_title}</h2>
+          <p class="text-[11px] sm:text-xs text-slate-500 mt-1">Track order status from pending to delivered.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <select id="orders-sort" class="focus-outline bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm cursor-pointer hover:border-orange-500">
+            <option value="date-newest" ${sortBy === 'date-newest' ? 'selected' : ''}>Date (Newest First)</option>
+            <option value="date-oldest" ${sortBy === 'date-oldest' ? 'selected' : ''}>Date (Oldest First)</option>
+            <option value="amount-low" ${sortBy === 'amount-low' ? 'selected' : ''}>Amount (Low-High)</option>
+            <option value="amount-high" ${sortBy === 'amount-high' ? 'selected' : ''}>Amount (High-Low)</option>
+            <option value="status-pending" ${sortBy === 'status-pending' ? 'selected' : ''}>Pending First</option>
+            <option value="status-processing" ${sortBy === 'status-processing' ? 'selected' : ''}>Processing First</option>
+            <option value="status-shipped" ${sortBy === 'status-shipped' ? 'selected' : ''}>Shipped First</option>
+            <option value="status-delivered" ${sortBy === 'status-delivered' ? 'selected' : ''}>Delivered First</option>
+            <option value="status-cancelled" ${sortBy === 'status-cancelled' ? 'selected' : ''}>Cancelled First</option>
+          </select>
+          <button id="btn-create-order" class="focus-outline inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-500 text-white text-xs sm:text-sm font-semibold shadow-md hover:bg-orange-600">
+            <span class="text-sm">＋</span>
+            <span>Create Order</span>
+          </button>
+        </div>
       </header>
 
       <div class="flex-1 min-h-0 rounded-xl bg-white border border-slate-200 overflow-hidden flex flex-col shadow-sm">
         <div class="px-3 sm:px-4 py-2 border-b border-slate-200 bg-slate-50">
-          <p class="text-[11px] sm:text-xs text-slate-500">Total ${orders.length} orders</p>
+          <p class="text-[11px] sm:text-xs text-slate-500">Total ${sortedOrders.length} orders</p>
         </div>
 
         <div class="flex-1 overflow-auto app-scrollbar">
@@ -1180,6 +1810,24 @@ async function renderOrdersPage() {
     </div>
     `;
 
+  const orderModal = document.getElementById("order-details-modal");
+
+  // Sorting handler
+  document.getElementById('orders-sort')?.addEventListener('change', (e) => {
+    localStorage.setItem('orders-sort', e.target.value);
+    renderOrdersPage();
+  });
+
+  // Create Order button handler
+  document.getElementById('btn-create-order')?.addEventListener('click', () => {
+    alert('Create Order functionality: This feature allows you to manually create orders for customers. Implementation would include:\n\n• Select customer from users list\n• Add products to cart\n• Set payment method\n• Add shipping details\n• Calculate totals with tax\n• Save order to database\n\nThis feature can be implemented based on your specific requirements.');
+  });
+
+  // Order Details Modal Close Handlers
+  document.getElementById('btn-close-order-modal')?.addEventListener('click', () => orderModal?.classList.add('hidden'));
+  document.getElementById('btn-done-order')?.addEventListener('click', () => orderModal?.classList.add('hidden'));
+  document.getElementById('order-modal-backdrop')?.addEventListener('click', () => orderModal?.classList.add('hidden'));
+
   document.getElementById('orders-tbody')?.addEventListener('change', async (e) => {
     const select = e.target.closest('select[data-order-id]');
     if (!select) return;
@@ -1206,11 +1854,7 @@ async function renderOrdersPage() {
       const modalId = document.getElementById('order-modal-id');
       const modalContent = document.getElementById('order-modal-content');
 
-      // Handlers
-      const closeModal = () => modal.classList.add('hidden');
-      document.getElementById('btn-close-order-modal').onclick = closeModal;
-      document.getElementById('btn-done-order').onclick = closeModal;
-      document.getElementById('order-modal-backdrop').onclick = closeModal;
+      if (!modal || !modalId || !modalContent) return;
 
       modalId.textContent = `Order #${order.id.substring(0, 8)}`;
 
@@ -1323,12 +1967,26 @@ async function renderUsersPage() {
 
   const users = await DatabaseService.getUsers();
 
-  const rowsHtml = users.map(u => {
+  // Sort users
+  const sortBy = localStorage.getItem('users-sort') || 'name-asc';
+  const sortedUsers = [...users].sort((a, b) => {
+    switch(sortBy) {
+      case 'name-asc': return (a.full_name || '').localeCompare(b.full_name || '');
+      case 'name-desc': return (b.full_name || '').localeCompare(a.full_name || '');
+      case 'role-admin': return (b.role === 'admin' ? 1 : 0) - (a.role === 'admin' ? 1 : 0);
+      case 'role-customer': return (a.role === 'customer' ? -1 : 1) - (b.role === 'customer' ? -1 : 1);
+      case 'status-active': return (b.blocked ? 1 : 0) - (a.blocked ? 1 : 0);
+      case 'status-blocked': return (a.blocked ? -1 : 1) - (b.blocked ? -1 : 1);
+      default: return 0;
+    }
+  });
+
+  const rowsHtml = sortedUsers.map(u => {
     const statusClass = u.blocked
       ? "bg-red-50 text-red-600 border border-red-200"
       : "bg-green-50 text-green-600 border border-green-200";
     const statusLabel = u.blocked ? "Blocked" : "Active";
-    const isAdmin = u.role === 'admin' || u.role === 'superadmin' || u.isAdmin;
+    const isAdmin = u.role === 'admin' || u.isAdmin;
     const roleClass = isAdmin
       ? "bg-orange-50 text-orange-600 border border-orange-200"
       : "bg-slate-50 text-slate-600 border border-slate-200";
@@ -1361,7 +2019,6 @@ async function renderUsersPage() {
             <select data-user-id="${u.id}" data-action="change-role" class="focus-outline bg-white border border-slate-300 rounded-full px-2 py-[2px] text-[10px] text-slate-700">
               <option value="customer" ${u.role === 'customer' ? 'selected' : ''}>Customer</option>
               <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
-              <option value="superadmin" ${u.role === 'superadmin' ? 'selected' : ''}>Super Admin</option>
             </select>
             <button data-user-id="${u.id}" data-blocked="${u.blocked}" data-action="toggle-block" class="focus-outline text-[10px] px-2 py-[2px] rounded-full ${u.blocked ? 'bg-green-50 text-green-700 border-green-300' : 'bg-red-50 text-red-700 border-red-300'} border">
               ${u.blocked ? 'Unblock' : 'Block'}
@@ -1379,15 +2036,25 @@ async function renderUsersPage() {
           <h2 class="text-base sm:text-lg font-semibold tracking-tight text-slate-800">${config.users_title}</h2>
           <p class="text-[11px] sm:text-xs text-slate-500 mt-1">Manage users, roles and access permissions.</p>
         </div>
-        <button id="btn-add-user" class="focus-outline inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-500 text-white text-xs sm:text-sm font-semibold shadow-md hover:bg-orange-600">
-          <span class="text-sm">＋</span>
-          <span>Add User</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <select id="users-sort" class="focus-outline bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm cursor-pointer hover:border-orange-500">
+            <option value="name-asc" ${sortBy === 'name-asc' ? 'selected' : ''}>Name (A-Z)</option>
+            <option value="name-desc" ${sortBy === 'name-desc' ? 'selected' : ''}>Name (Z-A)</option>
+            <option value="role-admin" ${sortBy === 'role-admin' ? 'selected' : ''}>Role: Admin First</option>
+            <option value="role-customer" ${sortBy === 'role-customer' ? 'selected' : ''}>Role: Customer First</option>
+            <option value="status-active" ${sortBy === 'status-active' ? 'selected' : ''}>Status: Active First</option>
+            <option value="status-blocked" ${sortBy === 'status-blocked' ? 'selected' : ''}>Status: Blocked First</option>
+          </select>
+          <button id="btn-add-user" class="focus-outline inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-500 text-white text-xs sm:text-sm font-semibold shadow-md hover:bg-orange-600">
+            <span class="text-sm">＋</span>
+            <span>Add User</span>
+          </button>
+        </div>
       </header>
 
       <div class="flex-1 min-h-0 rounded-xl bg-white border border-slate-200 overflow-hidden flex flex-col shadow-sm">
         <div class="px-3 sm:px-4 py-2 border-b border-slate-200 bg-slate-50">
-          <p class="text-[11px] sm:text-xs text-slate-500">Total ${users.length} users</p>
+          <p class="text-[11px] sm:text-xs text-slate-500">Total ${sortedUsers.length} users</p>
         </div>
 
         <div class="flex-1 overflow-auto app-scrollbar">
@@ -1460,6 +2127,12 @@ async function renderUsersPage() {
     </section>
     `;
 
+  // Sorting handler
+  document.getElementById('users-sort')?.addEventListener('change', (e) => {
+    localStorage.setItem('users-sort', e.target.value);
+    renderUsersPage();
+  });
+
   attachUserHandlers();
 }
 
@@ -1499,7 +2172,7 @@ function attachUserHandlers() {
 
     if (result.success) {
       // If making admin, also add to admins table
-      if (newRole === 'admin' || newRole === 'superadmin') {
+      if (newRole === 'admin') {
         await DatabaseService.addAdmin(userId, newRole, { permissions: ['all'] });
       } else {
         // If removing admin, remove from admins table
@@ -1549,7 +2222,7 @@ function attachUserHandlers() {
 
       if (result.success) {
         // If admin role, add to admins table
-        if (role === 'admin' || role === 'superadmin') {
+        if (role === 'admin') {
           await DatabaseService.addAdmin(result.user.id, role, { permissions: ['all'] });
         }
 
@@ -1595,7 +2268,20 @@ async function renderBookingsPage() {
     DatabaseService.getServiceTypes(true) // Only active service types
   ]);
 
-  const rowsHtml = bookings.map(b => {
+  // Sort bookings
+  const sortBy = localStorage.getItem('bookings-sort') || 'date-newest';
+  const sortedBookings = [...bookings].sort((a, b) => {
+    switch(sortBy) {
+      case 'date-newest': return new Date(b.scheduled_date) - new Date(a.scheduled_date);
+      case 'date-oldest': return new Date(a.scheduled_date) - new Date(b.scheduled_date);
+      case 'status-pending': return (a.status === 'pending' ? -1 : 1) - (b.status === 'pending' ? -1 : 1);
+      case 'status-completed': return (a.status === 'completed' ? -1 : 1) - (b.status === 'completed' ? -1 : 1);
+      case 'service-type': return (a.service_type || '').localeCompare(b.service_type || '');
+      default: return 0;
+    }
+  });
+
+  const rowsHtml = sortedBookings.map(b => {
     let badgeClass = "inline-flex items-center px-2 py-[1px] rounded-full border text-[10px]";
     if (b.status === "scheduled") badgeClass += " border-blue-300 text-blue-700 bg-blue-50";
     else if (b.status === "pending") badgeClass += " border-orange-300 text-orange-700 bg-orange-50";
@@ -1666,13 +2352,22 @@ async function renderBookingsPage() {
           <h2 class="text-base sm:text-lg font-semibold tracking-tight text-slate-800">${config.bookings_title}</h2>
           <p class="text-[11px] sm:text-xs text-slate-500 mt-1">Manage workshop appointments and service bookings.</p>
         </div>
-        <button id="btn-add-booking" class="focus-outline inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-500 text-white text-xs sm:text-sm font-semibold shadow-md hover:bg-purple-600">
-          <span class="text-sm">＋</span><span>Add Booking</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <select id="bookings-sort" class="focus-outline bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm cursor-pointer hover:border-purple-500">
+            <option value="date-newest" ${sortBy === 'date-newest' ? 'selected' : ''}>Date (Newest First)</option>
+            <option value="date-oldest" ${sortBy === 'date-oldest' ? 'selected' : ''}>Date (Oldest First)</option>
+            <option value="status-pending" ${sortBy === 'status-pending' ? 'selected' : ''}>Status: Pending First</option>
+            <option value="status-completed" ${sortBy === 'status-completed' ? 'selected' : ''}>Status: Completed First</option>
+            <option value="service-type" ${sortBy === 'service-type' ? 'selected' : ''}>Service Type (A-Z)</option>
+          </select>
+          <button id="btn-add-booking" class="focus-outline inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-500 text-white text-xs sm:text-sm font-semibold shadow-md hover:bg-purple-600">
+            <span class="text-sm">＋</span><span>Add Booking</span>
+          </button>
+        </div>
       </header>
       <div class="flex-1 min-h-0 rounded-xl bg-white border border-slate-200 overflow-hidden flex flex-col shadow-sm">
         <div class="px-3 sm:px-4 py-2 border-b border-slate-200 bg-slate-50">
-          <p class="text-[11px] sm:text-xs text-slate-500">Total ${bookings.length} bookings</p>
+          <p class="text-[11px] sm:text-xs text-slate-500">Total ${sortedBookings.length} bookings</p>
         </div>
         <div class="flex-1 overflow-auto app-scrollbar">
           <table class="min-w-full text-left text-xs sm:text-sm">
@@ -1691,7 +2386,7 @@ async function renderBookingsPage() {
           </table>
         </div>
       </div>
-      <!--Booking Details Modal-- >
+      <!--Booking Details Modal-->
       <div id="booking-details-modal" class="hidden fixed inset-0 flex items-center justify-center z-50">
         <div class="modal-backdrop absolute inset-0 bg-black/30 backdrop-blur-sm" id="booking-details-backdrop"></div>
         <div class="relative w-full max-w-lg max-h-[90vh] rounded-2xl bg-white border border-slate-200 shadow-2xl mx-4 flex flex-col">
@@ -1782,23 +2477,36 @@ async function renderBookingsPage() {
       </div>
     </section > `;
 
-  attachBookingHandlers();
+  // Sorting handler
+  document.getElementById('bookings-sort')?.addEventListener('change', (e) => {
+    localStorage.setItem('bookings-sort', e.target.value);
+    renderBookingsPage();
+  });
+
+  attachBookingHandlers(bookings);
 }
 
-function attachBookingHandlers() {
+function attachBookingHandlers(bookings = []) {
   const modal = document.getElementById("booking-modal");
+  const detailsModal = document.getElementById("booking-details-modal");
   const tbody = document.getElementById("bookings-tbody");
 
-  document.getElementById('btn-close-booking-modal')?.addEventListener('click', () => modal.classList.add('hidden'));
-  document.getElementById('btn-cancel-booking')?.addEventListener('click', () => modal.classList.add('hidden'));
-  document.getElementById('booking-modal-backdrop')?.addEventListener('click', () => modal.classList.add('hidden'));
+  // Booking Modal Close Handlers
+  document.getElementById('btn-close-booking-modal')?.addEventListener('click', () => modal?.classList.add('hidden'));
+  document.getElementById('btn-cancel-booking')?.addEventListener('click', () => modal?.classList.add('hidden'));
+  document.getElementById('booking-modal-backdrop')?.addEventListener('click', () => modal?.classList.add('hidden'));
+
+  // Booking Details Modal Close Handlers
+  document.getElementById('btn-close-booking-details')?.addEventListener('click', () => detailsModal?.classList.add('hidden'));
+  document.getElementById('btn-done-booking-details')?.addEventListener('click', () => detailsModal?.classList.add('hidden'));
+  document.getElementById('booking-details-backdrop')?.addEventListener('click', () => detailsModal?.classList.add('hidden'));
 
   document.getElementById('btn-add-booking')?.addEventListener('click', () => {
     document.getElementById('booking-modal-title').textContent = 'New Booking';
     document.getElementById('booking-id').value = '';
     document.getElementById('booking-form').reset();
     document.getElementById('booking-form-message').textContent = '';
-    modal.classList.remove('hidden');
+    modal?.classList.remove('hidden');
   });
 
   tbody?.addEventListener('change', async (e) => {
@@ -1818,19 +2526,14 @@ function attachBookingHandlers() {
     const action = btn.dataset.action;
 
     if (action === 'view-booking') {
-      const bookings = await DatabaseService.getBookings();
-      const booking = bookings.find(b => b.id === id);
-      if (!booking) return;
-
       const modal = document.getElementById('booking-details-modal');
       const modalId = document.getElementById('booking-details-id');
       const modalContent = document.getElementById('booking-details-content');
 
-      // Handlers
-      const closeModal = () => modal.classList.add('hidden');
-      document.getElementById('btn-close-booking-details').onclick = closeModal;
-      document.getElementById('btn-done-booking-details').onclick = closeModal;
-      document.getElementById('booking-details-backdrop').onclick = closeModal;
+      if (!modal || !modalId || !modalContent) return;
+
+      const booking = bookings.find(b => b.id === id);
+      if (!booking) return;
 
       modalId.textContent = `Booking #${booking.id.substring(0, 8)} `;
 
@@ -1960,7 +2663,6 @@ function attachBookingHandlers() {
         else alert('Failed to delete booking: ' + result.error);
       }
     } else if (action === 'edit-booking') {
-      const bookings = await DatabaseService.getBookings();
       const booking = bookings.find(b => b.id === id);
       if (!booking) return;
 
@@ -1980,7 +2682,7 @@ function attachBookingHandlers() {
       document.getElementById('booking-vehicle-year').value = vehicleInfo.year || '';
       document.getElementById('booking-status').value = booking.status || 'scheduled';
       document.getElementById('booking-notes').value = booking.notes || '';
-      modal.classList.remove('hidden');
+      modal?.classList.remove('hidden');
     }
   });
 
@@ -2013,7 +2715,7 @@ function attachBookingHandlers() {
     if (result.success) {
       msg.textContent = 'Saved successfully!';
       msg.className = 'text-[11px] text-green-600';
-      setTimeout(() => { modal.classList.add('hidden'); renderBookingsPage(); }, 500);
+      setTimeout(() => { modal?.classList.add('hidden'); renderBookingsPage(); }, 500);
     } else {
       msg.textContent = result.error;
       msg.className = 'text-[11px] text-red-600';
@@ -2042,7 +2744,23 @@ async function renderServiceTypesPage() {
     DatabaseService.getProducts() // For adding parts
   ]);
 
-  const listHtml = serviceTypes.map(s => {
+  // Sort service types
+  const sortBy = localStorage.getItem('service-types-sort') || 'name-asc';
+  const sortedServiceTypes = [...serviceTypes].sort((a, b) => {
+    switch(sortBy) {
+      case 'name-asc': return (a.name || '').localeCompare(b.name || '');
+      case 'name-desc': return (b.name || '').localeCompare(a.name || '');
+      case 'price-low': return (parseFloat(a.base_price || 0)) - (parseFloat(b.base_price || 0));
+      case 'price-high': return (parseFloat(b.base_price || 0)) - (parseFloat(a.base_price || 0));
+      case 'duration-short': return (parseInt(a.estimated_duration || 0)) - (parseInt(b.estimated_duration || 0));
+      case 'duration-long': return (parseInt(b.estimated_duration || 0)) - (parseInt(a.estimated_duration || 0));
+      case 'active-first': return (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0);
+      case 'inactive-first': return (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0);
+      default: return 0;
+    }
+  });
+
+  const listHtml = sortedServiceTypes.map(s => {
     const statusClass = s.is_active
       ? "bg-green-50 text-green-600 border border-green-200"
       : "bg-slate-100 text-slate-500 border border-slate-200";
@@ -2084,12 +2802,24 @@ async function renderServiceTypesPage() {
           <h2 class="text-base sm:text-lg font-semibold tracking-tight text-slate-800">${config.service_types_title}</h2>
           <p class="text-[11px] sm:text-xs text-slate-500 mt-1">Manage workshop service offerings and pricing.</p>
         </div>
-        <button id="btn-add-service" class="focus-outline inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500 text-white text-xs sm:text-sm font-semibold shadow-md hover:bg-indigo-600">
-          <span class="text-sm">＋</span><span>Add Service</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <select id="service-types-sort" class="focus-outline bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm cursor-pointer hover:border-indigo-500">
+            <option value="name-asc" ${sortBy === 'name-asc' ? 'selected' : ''}>Name (A-Z)</option>
+            <option value="name-desc" ${sortBy === 'name-desc' ? 'selected' : ''}>Name (Z-A)</option>
+            <option value="price-low" ${sortBy === 'price-low' ? 'selected' : ''}>Price (Low-High)</option>
+            <option value="price-high" ${sortBy === 'price-high' ? 'selected' : ''}>Price (High-Low)</option>
+            <option value="duration-short" ${sortBy === 'duration-short' ? 'selected' : ''}>Duration (Short-Long)</option>
+            <option value="duration-long" ${sortBy === 'duration-long' ? 'selected' : ''}>Duration (Long-Short)</option>
+            <option value="active-first" ${sortBy === 'active-first' ? 'selected' : ''}>Active First</option>
+            <option value="inactive-first" ${sortBy === 'inactive-first' ? 'selected' : ''}>Inactive First</option>
+          </select>
+          <button id="btn-add-service" class="focus-outline inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500 text-white text-xs sm:text-sm font-semibold shadow-md hover:bg-indigo-600">
+            <span class="text-sm">＋</span><span>Add Service</span>
+          </button>
+        </div>
       </header>
       <div class="flex-1 min-h-0 rounded-xl bg-slate-50 border border-slate-200 p-3 sm:p-4 flex flex-col gap-3">
-        <p class="text-[11px] sm:text-xs text-slate-500">You have ${serviceTypes.length} service types. ${serviceTypes.filter(s => s.is_active).length} active.</p>
+        <p class="text-[11px] sm:text-xs text-slate-500">You have ${sortedServiceTypes.length} service types. ${sortedServiceTypes.filter(s => s.is_active).length} active.</p>
         <ul id="services-list" class="space-y-2 overflow-auto app-scrollbar">
           ${listHtml || '<li class="text-center text-slate-400 py-8">No service types yet. Add your first service!</li>'}
         </ul>
@@ -2161,10 +2891,16 @@ async function renderServiceTypesPage() {
       </div>
     </section > `;
 
-  attachServiceTypeHandlers();
+  // Sorting handler
+  document.getElementById('service-types-sort')?.addEventListener('change', (e) => {
+    localStorage.setItem('service-types-sort', e.target.value);
+    renderServiceTypesPage();
+  });
+
+  attachServiceTypeHandlers(serviceTypes);
 }
 
-function attachServiceTypeHandlers() {
+function attachServiceTypeHandlers(serviceTypes = []) {
   const modal = document.getElementById("service-modal");
   const list = document.getElementById("services-list");
   let currentParts = []; // Local state for parts in modal
@@ -2255,8 +2991,7 @@ function attachServiceTypeHandlers() {
       if (result.success) renderServiceTypesPage();
       else alert('Failed to update: ' + result.error);
     } else if (action === 'edit-service') {
-      const services = await DatabaseService.getServiceTypes();
-      const service = services.find(s => s.id === id);
+      const service = serviceTypes.find(s => s.id === id);
       if (!service) return;
 
       document.getElementById('service-modal-title').textContent = 'Edit Service Type';
@@ -2390,6 +3125,22 @@ function attachSidebarNav() {
 document.addEventListener('DOMContentLoaded', async function init() {
   console.log('init() started');
   try {
+    // Initialize all new features
+    DarkMode.init();
+    OfflineManager.init();
+    KeyboardShortcuts.init();
+    
+    // Register keyboard shortcuts
+    KeyboardShortcuts.register('ctrl+k', () => {
+      const searchInput = document.querySelector('input[type="search"], input[placeholder*="Search"]');
+      if (searchInput) searchInput.focus();
+    }, 'Focus search');
+    
+    KeyboardShortcuts.register('ctrl+d', () => {
+      DarkMode.toggle();
+      showToast(`Dark mode ${DarkMode.enabled ? 'enabled' : 'disabled'}`, 'info');
+    }, 'Toggle dark mode');
+    
     // Initialize Supabase
     if (!await initializeSupabase()) {
       alert('Failed to initialize Supabase. Please check your configuration in js/config.js');

@@ -6,7 +6,7 @@ export class User {
   static ROLES = {
     CUSTOMER: 'customer',
     ADMIN: 'admin',
-    SUPER_ADMIN: 'superadmin'
+    // SUPER_ADMIN removed - only admin and customer roles supported
   };
 
   constructor({
@@ -67,16 +67,10 @@ export class User {
    * @returns {boolean}
    */
   isAdmin() {
-    return this.role === User.ROLES.ADMIN || this.role === User.ROLES.SUPER_ADMIN;
+    return this.role === User.ROLES.ADMIN;
   }
 
-  /**
-   * Check if user is super admin
-   * @returns {boolean}
-   */
-  isSuperAdmin() {
-    return this.role === User.ROLES.SUPER_ADMIN;
-  }
+  // isSuperAdmin method removed - superadmin role no longer supported
 
   /**
    * Convert to plain object for database

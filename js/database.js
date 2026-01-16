@@ -4,6 +4,36 @@
 console.log('js/database.js loading...');
 
 /**
+ * Wrapper for retrying database operations
+ * @param {Function} operation - Async operation to retry
+ * @param {number} maxRetries - Maximum retry attempts
+ * @returns {Promise} Operation result
+ */
+async function retryDatabaseOperation(operation, maxRetries = 3) {
+  let lastError;
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      console.warn(`Database operation failed (attempt ${i + 1}/${maxRetries}):`, error.message);
+      
+      // Don't retry on authentication or permission errors
+      if (error.code === 'PGRST301' || error.message.includes('auth')) {
+        throw error;
+      }
+      
+      if (i < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+      }
+    }
+  }
+  
+  throw lastError;
+}
+
+/**
  * Database service for all CRUD operations with new schema
  */
 const DatabaseService = {
@@ -184,6 +214,21 @@ const DatabaseService = {
 
   async createProduct(product) {
     try {
+      // Validate required fields
+      if (!product.name && !product.title) {
+        return { success: false, error: 'Product name is required' };
+      }
+      
+      // Validate price
+      if (!product.price || product.price <= 0) {
+        return { success: false, error: 'Valid price is required' };
+      }
+      
+      // Validate stock
+      if (product.stock !== undefined && product.stock < 0) {
+        return { success: false, error: 'Stock cannot be negative' };
+      }
+
       const { data, error } = await supabase
         .from("products")
         .insert([product])
@@ -205,6 +250,16 @@ const DatabaseService = {
 
   async updateProduct(id, updates) {
     try {
+      // Validate stock cannot be negative
+      if (updates.stock !== undefined && updates.stock < 0) {
+        return { success: false, error: 'Stock cannot be negative' };
+      }
+      
+      // Validate price cannot be negative or zero
+      if (updates.price !== undefined && updates.price <= 0) {
+        return { success: false, error: 'Price must be greater than zero' };
+      }
+
       const { data, error } = await supabase
         .from("products")
         .update(updates)
@@ -521,6 +576,72 @@ const DatabaseService = {
       return { success: true };
     } catch (error) {
       console.error("Error deleting order:", error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Batch delete orders
+   * @param {Array<string>} ids - Array of order IDs
+   * @returns {Promise<Object>} Result with success count
+   */
+  async batchDeleteOrders(ids) {
+    try {
+      let successCount = 0;
+      let failedCount = 0;
+      const errors = [];
+
+      for (const id of ids) {
+        const result = await this.deleteOrder(id);
+        if (result.success) {
+          successCount++;
+        } else {
+          failedCount++;
+          errors.push({ id, error: result.error });
+        }
+      }
+
+      return {
+        success: failedCount === 0,
+        successCount,
+        failedCount,
+        errors
+      };
+    } catch (error) {
+      console.error("Error batch deleting orders:", error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Batch delete products
+   * @param {Array<string>} ids - Array of product IDs
+   * @returns {Promise<Object>} Result with success count
+   */
+  async batchDeleteProducts(ids) {
+    try {
+      let successCount = 0;
+      let failedCount = 0;
+      const errors = [];
+
+      for (const id of ids) {
+        const result = await this.deleteProduct(id);
+        if (result.success) {
+          successCount++;
+        } else {
+          failedCount++;
+          errors.push({ id, error: result.error });
+        }
+      }
+
+      return {
+        success: failedCount === 0,
+        successCount,
+        failedCount,
+        errors
+      };
+    } catch (error) {
+      console.error("Error batch deleting products:", error);
       return { success: false, error: error.message };
     }
   },
@@ -919,6 +1040,40 @@ const DatabaseService = {
     } catch (error) {
       console.error("Error deleting booking:", error);
       return { success: false, error: error.message };
+    }
+  },
+
+  /* ========================================== */
+  /* AUDIT LOGGING - ENHANCED */
+  /* ========================================== */
+
+  /**
+   * Log action with detailed context
+   * @param {string} action - Action performed
+   * @param {string} entityType - Type of entity
+   * @param {string} entityId - Entity ID
+   * @param {Object} metadata - Additional metadata
+   * @param {string} userId - User ID (optional, defaults to current user)
+   */
+  async logDetailedAction(action, entityType, entityId, metadata = {}, userId = null) {
+    try {
+      const user = userId || (await supabase.auth.getUser()).data?.user?.id;
+      
+      await supabase.from('audit_logs').insert([{
+        user_id: user,
+        action: action,
+        entity_type: entityType,
+        entity_id: entityId,
+        metadata: {
+          ...metadata,
+          timestamp: new Date().toISOString(),
+          userAgent: navigator.userAgent,
+          ip: 'client-side' // Server should capture real IP
+        }
+      }]);
+    } catch (error) {
+      console.error('Error logging action:', error);
+      // Don't throw - logging failures shouldn't break operations
     }
   },
 

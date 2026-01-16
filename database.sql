@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   full_name TEXT,
   avatar_url TEXT,
   phone TEXT,
-  role TEXT DEFAULT 'customer', -- 'customer', 'admin', 'superadmin'
+  role TEXT DEFAULT 'customer', -- 'customer', 'admin'
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -55,7 +55,7 @@ BEGIN
   RETURN EXISTS (
     SELECT 1 FROM admins WHERE user_id = auth.uid()
   ) OR EXISTS (
-    SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin')
+    SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
