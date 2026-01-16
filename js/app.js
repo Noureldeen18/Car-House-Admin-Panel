@@ -364,43 +364,6 @@ function exportToCSV(data, filename, columns = null) {
 }
 
 /**
- * Dark mode toggle
- */
-const DarkMode = {
-  enabled: false,
-  
-  init() {
-    this.enabled = localStorage.getItem('dark-mode') === 'true';
-    if (this.enabled) {
-      this.apply();
-    }
-  },
-  
-  toggle() {
-    this.enabled = !this.enabled;
-    localStorage.setItem('dark-mode', this.enabled);
-    
-    if (this.enabled) {
-      this.apply();
-    } else {
-      this.remove();
-    }
-  },
-  
-  apply() {
-    document.documentElement.classList.add('dark');
-    document.body.classList.add('bg-slate-900', 'text-slate-100');
-    document.body.classList.remove('bg-slate-50', 'text-slate-800');
-  },
-  
-  remove() {
-    document.documentElement.classList.remove('dark');
-    document.body.classList.remove('bg-slate-900', 'text-slate-100');
-    document.body.classList.add('bg-slate-50', 'text-slate-800');
-  }
-};
-
-/**
  * Keyboard shortcuts handler
  */
 const KeyboardShortcuts = {
@@ -423,7 +386,7 @@ const KeyboardShortcuts = {
     if (e.ctrlKey) parts.push('ctrl');
     if (e.altKey) parts.push('alt');
     if (e.shiftKey) parts.push('shift');
-    parts.push(e.key.toLowerCase());
+    if (e.key) parts.push(e.key.toLowerCase());
     return parts.join('+');
   },
   
@@ -576,11 +539,6 @@ function createBaseLayout() {
     </div>
     <div class="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-slate-600">
       <span class="hidden sm:inline" id="user-name">Admin</span>
-      <button id="dark-mode-toggle" class="focus-outline p-2 rounded-lg hover:bg-slate-100" title="Toggle dark mode (Ctrl+D)">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
-        </svg>
-      </button>
       <button id="logout-btn" class="focus-outline px-2 sm:px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-[11px] sm:text-xs text-slate-700 hover:border-orange-500 hover:text-orange-600 shadow-sm">
         Logout
       </button>
@@ -687,12 +645,6 @@ function createBaseLayout() {
       hideLoading();
       window.location.href = 'login.html';
     }
-  });
-  
-  // Dark mode toggle handler
-  document.getElementById('dark-mode-toggle')?.addEventListener('click', () => {
-    DarkMode.toggle();
-    showToast(`Dark mode ${DarkMode.enabled ? 'enabled' : 'disabled'}`, 'info');
   });
 
   // Mobile menu toggle
@@ -976,9 +928,59 @@ async function renderProductsPage() {
     DatabaseService.getCategories()
   ]);
 
+  // Get filter values from localStorage or defaults
+  const filters = {
+    search: localStorage.getItem('products-filter-search') || '',
+    category: localStorage.getItem('products-filter-category') || '',
+    minPrice: localStorage.getItem('products-filter-minPrice') || '',
+    maxPrice: localStorage.getItem('products-filter-maxPrice') || '',
+    stockStatus: localStorage.getItem('products-filter-stockStatus') || 'all',
+    featured: localStorage.getItem('products-filter-featured') || 'all'
+  };
+
+  // Apply filters
+  let filteredProducts = products.filter(p => {
+    // Search filter (name, SKU, brand, car model)
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      const matchesSearch = 
+        (p.name || '').toLowerCase().includes(searchLower) ||
+        (p.sku || '').toLowerCase().includes(searchLower) ||
+        (p.brand || '').toLowerCase().includes(searchLower) ||
+        (p.car_model || '').toLowerCase().includes(searchLower);
+      if (!matchesSearch) return false;
+    }
+
+    // Category filter
+    if (filters.category && p.category_id !== filters.category) {
+      return false;
+    }
+
+    // Price range filter
+    const price = parseFloat(p.price) || 0;
+    if (filters.minPrice && price < parseFloat(filters.minPrice)) {
+      return false;
+    }
+    if (filters.maxPrice && price > parseFloat(filters.maxPrice)) {
+      return false;
+    }
+
+    // Stock status filter
+    const stock = parseInt(p.stock) || 0;
+    if (filters.stockStatus === 'in-stock' && stock <= 0) return false;
+    if (filters.stockStatus === 'low-stock' && (stock > 10 || stock <= 0)) return false;
+    if (filters.stockStatus === 'out-of-stock' && stock > 0) return false;
+
+    // Featured filter
+    if (filters.featured === 'featured' && !p.is_featured) return false;
+    if (filters.featured === 'regular' && p.is_featured) return false;
+
+    return true;
+  });
+
   // Sort products (only once)
   const sortBy = localStorage.getItem('products-sort') || 'name-asc';
-  const sortedProducts = [...products].sort((a, b) => {
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
     switch(sortBy) {
       case 'name-asc': return (a.name || '').localeCompare(b.name || '');
       case 'name-desc': return (b.name || '').localeCompare(a.name || '');
@@ -1077,6 +1079,10 @@ async function renderProductsPage() {
           <p class="text-[11px] sm:text-xs text-slate-500 mt-1">Manage car spare parts inventory, prices and compatibility.</p>
         </div>
         <div class="flex items-center gap-2">
+          <button id="btn-toggle-filters" class="focus-outline inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs font-medium shadow-sm hover:border-orange-500">
+            <span>🔍</span>
+            <span>Filters</span>
+          </button>
           <select id="products-sort" class="focus-outline bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm cursor-pointer hover:border-orange-500">
             <option value="name-asc" ${sortBy === 'name-asc' ? 'selected' : ''}>Name (A-Z)</option>
             <option value="name-desc" ${sortBy === 'name-desc' ? 'selected' : ''}>Name (Z-A)</option>
@@ -1096,10 +1102,55 @@ async function renderProductsPage() {
         </div>
       </header>
 
+      <!-- Filter Panel -->
+      <div id="filter-panel" class="hidden bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="flex flex-col gap-1">
+            <label for="filter-search" class="text-[11px] text-slate-600 font-bold uppercase">Search</label>
+            <input id="filter-search" type="text" placeholder="Name, SKU, Brand..." value="${filters.search}" class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label for="filter-category" class="text-[11px] text-slate-600 font-bold uppercase">Category</label>
+            <select id="filter-category" class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800">
+              <option value="">All Categories</option>
+              ${categories.map(c => `<option value="${c.id}" ${filters.category === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+            </select>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-[11px] text-slate-600 font-bold uppercase">Price Range</label>
+            <div class="flex items-center gap-2">
+              <input id="filter-min-price" type="number" placeholder="Min" value="${filters.minPrice}" class="focus-outline text-xs px-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 w-full" />
+              <span class="text-slate-400">-</span>
+              <input id="filter-max-price" type="number" placeholder="Max" value="${filters.maxPrice}" class="focus-outline text-xs px-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 w-full" />
+            </div>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label for="filter-stock" class="text-[11px] text-slate-600 font-bold uppercase">Stock Status</label>
+            <select id="filter-stock" class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800">
+              <option value="all" ${filters.stockStatus === 'all' ? 'selected' : ''}>All</option>
+              <option value="in-stock" ${filters.stockStatus === 'in-stock' ? 'selected' : ''}>In Stock</option>
+              <option value="low-stock" ${filters.stockStatus === 'low-stock' ? 'selected' : ''}>Low Stock (≤10)</option>
+              <option value="out-of-stock" ${filters.stockStatus === 'out-of-stock' ? 'selected' : ''}>Out of Stock</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-slate-100">
+          <div class="flex items-center gap-2">
+            <label for="filter-featured" class="text-[11px] text-slate-600 font-bold uppercase">Featured:</label>
+            <select id="filter-featured" class="focus-outline text-xs px-2 py-1 rounded bg-slate-50 border border-slate-200 text-slate-800">
+              <option value="all" ${filters.featured === 'all' ? 'selected' : ''}>All</option>
+              <option value="featured" ${filters.featured === 'featured' ? 'selected' : ''}>Featured Only</option>
+              <option value="regular" ${filters.featured === 'regular' ? 'selected' : ''}>Regular Only</option>
+            </select>
+          </div>
+          <button id="btn-clear-filters" class="focus-outline text-xs px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium">Clear Filters</button>
+        </div>
+      </div>
+
       <!-- Products Table -->
       <div class="flex-1 min-h-0 rounded-xl bg-white border border-slate-200 overflow-hidden flex flex-col shadow-sm">
         <div class="px-3 sm:px-4 py-2 border-b border-slate-200 bg-slate-50">
-          <p class="text-[11px] sm:text-xs text-slate-500">Showing ${sortedProducts.length} products</p>
+          <p class="text-[11px] sm:text-xs text-slate-500">Showing ${sortedProducts.length} of ${products.length} products</p>
         </div>
 
         <div class="flex-1 overflow-auto app-scrollbar">
@@ -1233,6 +1284,63 @@ async function renderProductsPage() {
   if (sortDropdown) {
     sortDropdown.addEventListener('change', (e) => {
       localStorage.setItem('products-sort', e.target.value);
+      renderProductsPage();
+    });
+  }
+
+  // Toggle filter panel
+  const btnToggleFilters = document.getElementById('btn-toggle-filters');
+  const filterPanel = document.getElementById('filter-panel');
+  if (btnToggleFilters && filterPanel) {
+    btnToggleFilters.addEventListener('click', () => {
+      filterPanel.classList.toggle('hidden');
+    });
+  }
+
+  // Filter event listeners
+  const filterSearch = document.getElementById('filter-search');
+  const filterCategory = document.getElementById('filter-category');
+  const filterMinPrice = document.getElementById('filter-min-price');
+  const filterMaxPrice = document.getElementById('filter-max-price');
+  const filterStock = document.getElementById('filter-stock');
+  const filterFeatured = document.getElementById('filter-featured');
+
+  const applyFilters = () => {
+    if (filterSearch) localStorage.setItem('products-filter-search', filterSearch.value);
+    if (filterCategory) localStorage.setItem('products-filter-category', filterCategory.value);
+    if (filterMinPrice) localStorage.setItem('products-filter-minPrice', filterMinPrice.value);
+    if (filterMaxPrice) localStorage.setItem('products-filter-maxPrice', filterMaxPrice.value);
+    if (filterStock) localStorage.setItem('products-filter-stockStatus', filterStock.value);
+    if (filterFeatured) localStorage.setItem('products-filter-featured', filterFeatured.value);
+    renderProductsPage();
+  };
+
+  // Add debounced search
+  let searchTimeout;
+  if (filterSearch) {
+    filterSearch.addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(applyFilters, 300);
+    });
+  }
+
+  // Immediate filters
+  if (filterCategory) filterCategory.addEventListener('change', applyFilters);
+  if (filterMinPrice) filterMinPrice.addEventListener('change', applyFilters);
+  if (filterMaxPrice) filterMaxPrice.addEventListener('change', applyFilters);
+  if (filterStock) filterStock.addEventListener('change', applyFilters);
+  if (filterFeatured) filterFeatured.addEventListener('change', applyFilters);
+
+  // Clear filters button
+  const btnClearFilters = document.getElementById('btn-clear-filters');
+  if (btnClearFilters) {
+    btnClearFilters.addEventListener('click', () => {
+      localStorage.removeItem('products-filter-search');
+      localStorage.removeItem('products-filter-category');
+      localStorage.removeItem('products-filter-minPrice');
+      localStorage.removeItem('products-filter-maxPrice');
+      localStorage.removeItem('products-filter-stockStatus');
+      localStorage.removeItem('products-filter-featured');
       renderProductsPage();
     });
   }
@@ -3126,7 +3234,6 @@ document.addEventListener('DOMContentLoaded', async function init() {
   console.log('init() started');
   try {
     // Initialize all new features
-    DarkMode.init();
     OfflineManager.init();
     KeyboardShortcuts.init();
     
@@ -3135,11 +3242,6 @@ document.addEventListener('DOMContentLoaded', async function init() {
       const searchInput = document.querySelector('input[type="search"], input[placeholder*="Search"]');
       if (searchInput) searchInput.focus();
     }, 'Focus search');
-    
-    KeyboardShortcuts.register('ctrl+d', () => {
-      DarkMode.toggle();
-      showToast(`Dark mode ${DarkMode.enabled ? 'enabled' : 'disabled'}`, 'info');
-    }, 'Toggle dark mode');
     
     // Initialize Supabase
     if (!await initializeSupabase()) {
