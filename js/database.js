@@ -1089,14 +1089,16 @@ const DatabaseService = {
         { data: orderData },
         { count: userCount },
         { data: reviewData },
-        { data: bookingData }
+        { data: bookingData },
+        { count: serviceTypeCount }
       ] = await Promise.all([
         supabase.from("products").select("*", { count: "exact", head: true }),
         supabase.from("categories").select("*", { count: "exact", head: true }),
         supabase.from("orders").select("total_amount, status"),
         supabase.from("profiles").select("*", { count: "exact", head: true }),
         supabase.from("reviews").select("rating"),
-        supabase.from("workshop_bookings").select("status")
+        supabase.from("workshop_bookings").select("status"),
+        supabase.from("service_types").select("*", { count: "exact", head: true })
       ]);
 
       const totalRevenue = (orderData || []).reduce(
@@ -1105,6 +1107,7 @@ const DatabaseService = {
       );
 
       const pendingOrders = (orderData || []).filter((o) => o.status === "pending").length;
+      const completedOrders = (orderData || []).filter((o) => o.status === "completed" || o.status === "delivered").length;
       const pendingBookings = (bookingData || []).filter(
         (b) => b.status === "scheduled" || b.status === "pending"
       ).length;
@@ -1120,10 +1123,12 @@ const DatabaseService = {
         totalUsers: userCount || 0,
         totalRevenue,
         pendingOrders,
+        completedOrders,
         totalReviews: (reviewData || []).length,
         averageRating: avgRating.toFixed(1),
         totalBookings: (bookingData || []).length,
         pendingBookings,
+        totalServiceTypes: serviceTypeCount || 0,
       };
     } catch (error) {
       console.error("Error fetching statistics:", error);
@@ -1134,10 +1139,12 @@ const DatabaseService = {
         totalUsers: 0,
         totalRevenue: 0,
         pendingOrders: 0,
+        completedOrders: 0,
         totalReviews: 0,
         averageRating: 0,
         totalBookings: 0,
         pendingBookings: 0,
+        totalServiceTypes: 0,
       };
     }
   },
