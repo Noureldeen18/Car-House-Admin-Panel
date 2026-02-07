@@ -531,7 +531,7 @@ const DatabaseService = {
         product_id: item.product_id,
         sku: item.sku,
         title: item.title,
-        unit_price: item.unit_price,
+        price: item.unit_price,
         quantity: item.quantity,
         subtotal: item.unit_price * item.quantity,
       }));

@@ -1916,9 +1916,112 @@ async function renderOrdersPage() {
         </div>
       </div>
     </div>
+
+    <!-- Create Order Modal -->
+    <div id="create-order-modal" class="hidden fixed inset-0 flex items-center justify-center z-50">
+      <div class="modal-backdrop absolute inset-0 bg-black/40 backdrop-blur-sm" id="create-order-backdrop"></div>
+      <div class="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl mx-4 app-scrollbar">
+        <form id="create-order-form" class="flex flex-col gap-4 px-4 sm:px-6 py-5">
+          <div class="flex items-start justify-between gap-3 sticky top-0 bg-white z-10 pb-2 border-b border-slate-100">
+            <div>
+              <h3 class="text-base sm:text-lg font-bold text-slate-800">Create New Order</h3>
+              <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5">Create a manual order for a customer.</p>
+            </div>
+            <button type="button" id="btn-close-create-order" class="focus-outline text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
+          </div>
+
+          <!-- Customer Selection -->
+          <div class="flex flex-col gap-1">
+            <label for="order-customer" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Customer *</label>
+            <select id="order-customer" required class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800">
+              <option value="">Select a customer</option>
+            </select>
+          </div>
+
+          <!-- Products Selection -->
+          <div class="flex flex-col gap-2">
+            <label class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Order Items *</label>
+            <div class="bg-slate-50 rounded-lg border border-slate-200 p-3">
+              <div class="flex gap-2 mb-3">
+                <select id="order-product-select" class="flex-1 focus-outline text-xs px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800">
+                  <option value="">Select product to add</option>
+                </select>
+                <input type="number" id="order-product-qty" min="1" value="1" class="w-20 focus-outline text-xs px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800 text-center" placeholder="Qty" />
+                <button type="button" id="btn-add-order-item" class="focus-outline px-4 py-2 rounded-lg bg-orange-500 text-white text-xs font-bold hover:bg-orange-600">Add</button>
+              </div>
+              <div id="order-items-list" class="flex flex-col gap-2 max-h-40 overflow-y-auto">
+                <p class="text-xs text-slate-400 text-center py-2">No items added yet</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Payment Method -->
+            <div class="flex flex-col gap-1">
+              <label for="order-payment-method" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Payment Method</label>
+              <select id="order-payment-method" class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800">
+                <option value="cash">Cash on Delivery</option>
+                <option value="card">Credit/Debit Card</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="wallet">Digital Wallet</option>
+              </select>
+            </div>
+
+            <!-- Order Notes -->
+            <div class="flex flex-col gap-1">
+              <label for="order-notes" class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Order Notes</label>
+              <input id="order-notes" type="text" placeholder="Optional notes..." class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800" />
+            </div>
+          </div>
+
+          <!-- Shipping Address -->
+          <div class="flex flex-col gap-2">
+            <label class="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Shipping Address</label>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input id="order-address-street" type="text" placeholder="Street Address" class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800" />
+              <input id="order-address-city" type="text" placeholder="City" class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800" />
+              <input id="order-address-state" type="text" placeholder="State/Province" class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800" />
+              <input id="order-address-zip" type="text" placeholder="ZIP/Postal Code" class="focus-outline text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800" />
+            </div>
+          </div>
+
+          <!-- Order Summary -->
+          <div class="bg-slate-100 rounded-lg p-4 border border-slate-200">
+            <h4 class="text-xs font-bold text-slate-700 mb-3 uppercase">Order Summary</h4>
+            <div class="flex flex-col gap-2 text-xs">
+              <div class="flex justify-between">
+                <span class="text-slate-600">Subtotal:</span>
+                <span id="order-subtotal" class="font-medium text-slate-800">EGP 0.00</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-600">Tax (14%):</span>
+                <span id="order-tax" class="font-medium text-slate-800">EGP 0.00</span>
+              </div>
+              <div class="flex justify-between pt-2 border-t border-slate-300">
+                <span class="font-bold text-slate-700">Total:</span>
+                <span id="order-total" class="font-bold text-orange-600 text-sm">EGP 0.00</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 mt-2 pt-4 border-t border-slate-100">
+            <p id="create-order-message" class="text-[11px] font-medium"></p>
+            <div class="flex items-center gap-3">
+              <button type="button" id="btn-cancel-create-order" class="focus-outline px-4 py-2 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
+              <button type="submit" id="btn-submit-order" class="focus-outline px-6 py-2 rounded-lg bg-orange-500 text-white text-xs font-bold hover:bg-orange-600 shadow-lg shadow-orange-200 transition-all">Create Order</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
     `;
 
   const orderModal = document.getElementById("order-details-modal");
+  const createOrderModal = document.getElementById("create-order-modal");
+  
+  // Order items state for create order modal
+  let orderItems = [];
+  let availableProducts = [];
 
   // Sorting handler
   document.getElementById('orders-sort')?.addEventListener('change', (e) => {
@@ -1926,9 +2029,210 @@ async function renderOrdersPage() {
     renderOrdersPage();
   });
 
+  // Helper function to update order totals
+  function updateOrderTotals() {
+    const subtotal = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const tax = subtotal * 0.14;
+    const total = subtotal + tax;
+    
+    document.getElementById('order-subtotal').textContent = formatCurrency(subtotal);
+    document.getElementById('order-tax').textContent = formatCurrency(tax);
+    document.getElementById('order-total').textContent = formatCurrency(total);
+  }
+
+  // Helper function to render order items list
+  function renderOrderItemsList() {
+    const listEl = document.getElementById('order-items-list');
+    if (!listEl) return;
+    
+    if (orderItems.length === 0) {
+      listEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">No items added yet</p>';
+    } else {
+      listEl.innerHTML = orderItems.map((item, index) => `
+        <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-slate-200">
+          <div class="flex-1">
+            <p class="text-xs font-medium text-slate-800">${item.name}</p>
+            <p class="text-[10px] text-slate-500">${formatCurrency(item.price)} × ${item.quantity}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-orange-600">${formatCurrency(item.price * item.quantity)}</span>
+            <button type="button" data-remove-item="${index}" class="text-red-500 hover:text-red-700 text-sm">✕</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    updateOrderTotals();
+  }
+
   // Create Order button handler
-  document.getElementById('btn-create-order')?.addEventListener('click', () => {
-    alert('Create Order functionality: This feature allows you to manually create orders for customers. Implementation would include:\n\n• Select customer from users list\n• Add products to cart\n• Set payment method\n• Add shipping details\n• Calculate totals with tax\n• Save order to database\n\nThis feature can be implemented based on your specific requirements.');
+  document.getElementById('btn-create-order')?.addEventListener('click', async () => {
+    // Reset form and state
+    orderItems = [];
+    document.getElementById('create-order-form')?.reset();
+    document.getElementById('create-order-message').textContent = '';
+    renderOrderItemsList();
+    
+    // Load customers and products
+    try {
+      const [users, products] = await Promise.all([
+        DatabaseService.getUsers(),
+        DatabaseService.getProducts()
+      ]);
+      
+      availableProducts = products;
+      
+      // Populate customer dropdown
+      const customerSelect = document.getElementById('order-customer');
+      if (customerSelect) {
+        customerSelect.innerHTML = '<option value="">Select a customer</option>' + 
+          users.map(u => `<option value="${u.id}">${u.full_name || u.email} (${u.email})</option>`).join('');
+      }
+      
+      // Populate products dropdown
+      const productSelect = document.getElementById('order-product-select');
+      if (productSelect) {
+        productSelect.innerHTML = '<option value="">Select product to add</option>' + 
+          products.filter(p => p.stock > 0).map(p => 
+            `<option value="${p.id}" data-price="${p.price}" data-name="${p.name}" data-sku="${p.sku || ''}">${p.name} - ${formatCurrency(p.price)} (${p.stock} in stock)</option>`
+          ).join('');
+      }
+      
+      createOrderModal?.classList.remove('hidden');
+    } catch (error) {
+      console.error('Error loading data for create order:', error);
+      showToast('Failed to load data. Please try again.', 'error');
+    }
+  });
+
+  // Close create order modal handlers
+  document.getElementById('btn-close-create-order')?.addEventListener('click', () => createOrderModal?.classList.add('hidden'));
+  document.getElementById('btn-cancel-create-order')?.addEventListener('click', () => createOrderModal?.classList.add('hidden'));
+  document.getElementById('create-order-backdrop')?.addEventListener('click', () => createOrderModal?.classList.add('hidden'));
+
+  // Add item to order
+  document.getElementById('btn-add-order-item')?.addEventListener('click', () => {
+    const productSelect = document.getElementById('order-product-select');
+    const qtyInput = document.getElementById('order-product-qty');
+    
+    if (!productSelect?.value) {
+      showToast('Please select a product', 'error');
+      return;
+    }
+    
+    const selectedOption = productSelect.options[productSelect.selectedIndex];
+    const productId = productSelect.value;
+    const productName = selectedOption.dataset.name;
+    const productPrice = parseFloat(selectedOption.dataset.price);
+    const productSku = selectedOption.dataset.sku;
+    const quantity = parseInt(qtyInput?.value) || 1;
+    
+    // Check if product already in list
+    const existingIndex = orderItems.findIndex(item => item.productId === productId);
+    if (existingIndex >= 0) {
+      orderItems[existingIndex].quantity += quantity;
+    } else {
+      orderItems.push({
+        productId,
+        name: productName,
+        price: productPrice,
+        sku: productSku,
+        quantity
+      });
+    }
+    
+    // Reset selection
+    productSelect.value = '';
+    qtyInput.value = 1;
+    
+    renderOrderItemsList();
+  });
+
+  // Remove item from order
+  document.getElementById('order-items-list')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-remove-item]');
+    if (!btn) return;
+    
+    const index = parseInt(btn.dataset.removeItem);
+    orderItems.splice(index, 1);
+    renderOrderItemsList();
+  });
+
+  // Submit create order form
+  document.getElementById('create-order-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const messageEl = document.getElementById('create-order-message');
+    const submitBtn = document.getElementById('btn-submit-order');
+    
+    // Validate
+    const customerId = document.getElementById('order-customer')?.value;
+    if (!customerId) {
+      messageEl.textContent = 'Please select a customer';
+      messageEl.className = 'text-[11px] font-medium text-red-500';
+      return;
+    }
+    
+    if (orderItems.length === 0) {
+      messageEl.textContent = 'Please add at least one item';
+      messageEl.className = 'text-[11px] font-medium text-red-500';
+      return;
+    }
+    
+    // Calculate totals
+    const subtotal = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const tax = subtotal * 0.14;
+    const totalAmount = subtotal + tax;
+    
+    // Build shipping address
+    const shippingAddress = {
+      street: document.getElementById('order-address-street')?.value || '',
+      city: document.getElementById('order-address-city')?.value || '',
+      state: document.getElementById('order-address-state')?.value || '',
+      zip: document.getElementById('order-address-zip')?.value || ''
+    };
+    
+    const orderData = {
+      user_id: customerId,
+      total_amount: totalAmount,
+      subtotal: subtotal,
+      tax: tax,
+      payment_method: document.getElementById('order-payment-method')?.value || 'cash',
+      shipping_address: shippingAddress,
+      notes: document.getElementById('order-notes')?.value || '',
+      items: orderItems.map(item => ({
+        product_id: item.productId,
+        sku: item.sku,
+        title: item.name,
+        unit_price: item.price,
+        quantity: item.quantity
+      }))
+    };
+    
+    // Submit
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating...';
+    messageEl.textContent = '';
+    
+    try {
+      const result = await DatabaseService.createOrder(orderData);
+      
+      if (result.success) {
+        showToast('Order created successfully!', 'success');
+        createOrderModal?.classList.add('hidden');
+        renderOrdersPage();
+      } else {
+        messageEl.textContent = result.error || 'Failed to create order';
+        messageEl.className = 'text-[11px] font-medium text-red-500';
+      }
+    } catch (error) {
+      console.error('Error creating order:', error);
+      messageEl.textContent = 'An error occurred. Please try again.';
+      messageEl.className = 'text-[11px] font-medium text-red-500';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Create Order';
+    }
   });
 
   // Order Details Modal Close Handlers
