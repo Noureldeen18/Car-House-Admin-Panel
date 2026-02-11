@@ -508,42 +508,63 @@ const DatabaseService = {
 
   async createOrder(orderData) {
     try {
+      const totalVal = orderData.total_amount || orderData.total || 0;
+
+      // 1. Insert order with all schema columns
       const { data: order, error: orderError } = await supabase
         .from("orders")
-        .insert([
-          {
-            user_id: orderData.user_id,
-            total_amount: orderData.total_amount,
-            status: "pending",
-            shipping_address: orderData.shipping_address,
-            billing_address: orderData.billing_address,
-            payment_meta: orderData.payment_meta,
-          },
-        ])
+        .insert([{
+          user_id: orderData.user_id,
+          status: orderData.status || "pending",
+          total_amount: totalVal,
+          total: totalVal,
+          subtotal: orderData.subtotal || null,
+          tax: orderData.tax || null,
+          shipping_cost: orderData.shipping_cost || null,
+          discount_amount: orderData.discount_amount || null,
+          payment_status: orderData.payment_status || "pending",
+          payment_method: orderData.payment_method || null,
+          shipping_address: orderData.shipping_address || {},
+          billing_address: orderData.billing_address || {},
+          payment_meta: orderData.payment_meta || {},
+          notes: orderData.notes || null,
+          tracking_number: orderData.tracking_number || null
+        }])
         .select()
         .single();
 
       if (orderError) throw orderError;
 
-      // Create order items
-      const items = orderData.items.map((item) => ({
-        order_id: order.id,
-        product_id: item.product_id,
-        sku: item.sku,
-        title: item.title,
-        price: item.unit_price,
-        quantity: item.quantity,
-        subtotal: item.unit_price * item.quantity,
-      }));
+      // 2. Insert order items
+      if (orderData.items && orderData.items.length > 0) {
+        const items = orderData.items.map((item) => {
+          const unitPrice = item.unit_price || item.price || 0;
+          const qty = item.quantity || 1;
+          return {
+            order_id: order.id,
+            product_id: item.product_id,
+            sku: item.sku || null,
+            title: item.title || null,
+            unit_price: unitPrice,
+            price: unitPrice,
+            quantity: qty,
+            subtotal: item.subtotal || (unitPrice * qty)
+          };
+        });
 
-      const { error: itemsError } = await supabase
-        .from("order_items")
-        .insert(items);
+        const { error: itemsError } = await supabase
+          .from("order_items")
+          .insert(items);
 
-      if (itemsError) throw itemsError;
+        if (itemsError) {
+          // Rollback: delete the order if items failed
+          await supabase.from("orders").delete().eq("id", order.id);
+          throw itemsError;
+        }
+      }
 
       await AuthService.logAction("create", "order", order.id, {
-        total: orderData.total_amount,
+        total: totalVal,
       });
 
       return { success: true, data: order };
@@ -1062,14 +1083,14 @@ const DatabaseService = {
       await supabase.from('audit_logs').insert([{
         user_id: user,
         action: action,
-        entity_type: entityType,
-        entity_id: entityId,
-        metadata: {
+        resource_type: entityType,
+        resource_id: entityId,
+        details: {
           ...metadata,
-          timestamp: new Date().toISOString(),
-          userAgent: navigator.userAgent,
-          ip: 'client-side' // Server should capture real IP
-        }
+          timestamp: new Date().toISOString()
+        },
+        ip_address: 'client-side',
+        user_agent: navigator.userAgent
       }]);
     } catch (error) {
       console.error('Error logging action:', error);

@@ -97,10 +97,10 @@ export class ServiceType {
       id: this.id,
       name: this.name,
       description: this.description,
-      duration_minutes: this.duration,
+      estimated_duration: this.duration,
       base_price: this.price,
       icon: this.icon,
-      display_position: this.position,
+      position: this.position,
       is_active: this.isActive
     };
   }
@@ -115,10 +115,10 @@ export class ServiceType {
       id: data.id,
       name: data.name,
       description: data.description || '',
-      duration: data.duration_minutes,
+      duration: data.estimated_duration,
       price: data.base_price,
       icon: data.icon || '🔧',
-      position: data.display_position || 0,
+      position: data.position || 0,
       isActive: data.is_active !== false,
       createdAt: data.created_at,
       updatedAt: data.updated_at

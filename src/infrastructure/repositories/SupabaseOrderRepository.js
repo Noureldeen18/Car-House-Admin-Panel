@@ -106,47 +106,54 @@ export class SupabaseOrderRepository extends IOrderRepository {
    */
   async create(orderData) {
     try {
-      // Insert order first
+      // 1. Insert order with all schema columns
       const { data: order, error: orderError } = await this.supabase
         .from('orders')
         .insert([{
           user_id: orderData.user_id,
           status: orderData.status || 'pending',
-          total_amount: orderData.total_amount,
-          subtotal: orderData.subtotal,
-          tax: orderData.tax,
-          shipping_cost: orderData.shipping_cost || 0,
-          discount_amount: orderData.discount_amount || 0,
+          total_amount: orderData.total_amount || orderData.total || 0,
+          total: orderData.total || orderData.total_amount || 0,
+          subtotal: orderData.subtotal || null,
+          tax: orderData.tax || null,
+          shipping_cost: orderData.shipping_cost || null,
+          discount_amount: orderData.discount_amount || null,
           payment_status: orderData.payment_status || 'pending',
-          payment_method: orderData.payment_method,
-          shipping_address: orderData.shipping_address,
-          billing_address: orderData.billing_address,
+          payment_method: orderData.payment_method || null,
+          shipping_address: orderData.shipping_address || {},
+          billing_address: orderData.billing_address || {},
           payment_meta: orderData.payment_meta || {},
-          notes: orderData.notes
+          notes: orderData.notes || null,
+          tracking_number: orderData.tracking_number || null
         }])
         .select()
         .single();
 
       if (orderError) throw orderError;
 
-      // Insert order items
+      // 2. Insert order items
       if (orderData.items && orderData.items.length > 0) {
-        const items = orderData.items.map(item => ({
-          order_id: order.id,
-          product_id: item.product_id,
-          sku: item.sku || '',
-          title: item.title,
-          unit_price: item.unit_price,
-          quantity: item.quantity,
-          subtotal: item.subtotal || (item.unit_price * item.quantity)
-        }));
+        const items = orderData.items.map(item => {
+          const unitPrice = item.unit_price || item.price || 0;
+          const qty = item.quantity || 1;
+          return {
+            order_id: order.id,
+            product_id: item.product_id,
+            sku: item.sku || null,
+            title: item.title || null,
+            unit_price: unitPrice,
+            price: unitPrice,
+            quantity: qty,
+            subtotal: item.subtotal || (unitPrice * qty)
+          };
+        });
 
         const { error: itemsError } = await this.supabase
           .from('order_items')
           .insert(items);
 
         if (itemsError) {
-          // Try to rollback order if items failed
+          // Rollback: delete the order if items failed
           await this.supabase.from('orders').delete().eq('id', order.id);
           throw itemsError;
         }

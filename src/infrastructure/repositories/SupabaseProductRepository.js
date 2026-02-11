@@ -186,8 +186,8 @@ export class SupabaseProductRepository extends IProductRepository {
         .insert({
           product_id: productId,
           url: imageData.url,
-          alt_text: imageData.alt || '',
-          display_position: imageData.position || 0
+          alt: imageData.alt || '',
+          position: imageData.position || 0
         })
         .select()
         .single();

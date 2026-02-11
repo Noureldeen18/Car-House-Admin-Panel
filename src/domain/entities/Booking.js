@@ -6,7 +6,7 @@ export class Booking {
   static STATUS = {
     SCHEDULED: 'scheduled',
     PENDING: 'pending',
-    IN_PROGRESS: 'in_progress',
+    IN_PROGRESS: 'in-progress',
     COMPLETED: 'completed',
     CANCELLED: 'cancelled'
   };
@@ -14,6 +14,7 @@ export class Booking {
   constructor({
     id = null,
     userId = null,
+    serviceTypeId = null,
     serviceType,
     scheduledDate,
     vehicleMake = '',
@@ -23,11 +24,11 @@ export class Booking {
     notes = '',
     profile = null,
     service = null,
-    createdAt = null,
-    updatedAt = null
+    createdAt = null
   }) {
     this.id = id;
     this.userId = userId;
+    this.serviceTypeId = serviceTypeId;
     this.serviceType = serviceType;
     this.scheduledDate = scheduledDate;
     this.vehicleMake = vehicleMake;
@@ -38,7 +39,6 @@ export class Booking {
     this.profile = profile;
     this.service = service;
     this.createdAt = createdAt;
-    this.updatedAt = updatedAt;
   }
 
   /**
@@ -108,11 +108,14 @@ export class Booking {
     return {
       id: this.id,
       user_id: this.userId,
+      service_type_id: this.serviceTypeId,
       service_type: this.serviceType,
       scheduled_date: this.scheduledDate,
-      vehicle_make: this.vehicleMake,
-      vehicle_model: this.vehicleModel,
-      vehicle_year: this.vehicleYear,
+      vehicle_info: {
+        make: this.vehicleMake,
+        model: this.vehicleModel,
+        year: this.vehicleYear
+      },
       status: this.status,
       notes: this.notes
     };
@@ -127,17 +130,17 @@ export class Booking {
     return new Booking({
       id: data.id,
       userId: data.user_id,
+      serviceTypeId: data.service_type_id,
       serviceType: data.service_type,
       scheduledDate: data.scheduled_date,
-      vehicleMake: data.vehicle_make || '',
-      vehicleModel: data.vehicle_model || '',
-      vehicleYear: data.vehicle_year,
+      vehicleMake: data.vehicle_info?.make || '',
+      vehicleModel: data.vehicle_info?.model || '',
+      vehicleYear: data.vehicle_info?.year || null,
       status: data.status,
       notes: data.notes || '',
       profile: data.profile,
       service: data.service,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at
+      createdAt: data.created_at
     });
   }
 }

@@ -24,11 +24,11 @@ export class CreateOrder {
    */
   async execute(data) {
     try {
-      // Import Order entity (dynamic import for browser compatibility)
+      // Import Order entity and tax utilities
       const { Order } = await import('../../../domain/entities/Order.js');
+      const { TAX_RATE } = await import('../../../shared/utils/constants.js');
 
       // Calculate totals
-      const TAX_RATE = 0.14; // 14% tax
       const subtotal = data.items.reduce((sum, item) => {
         return sum + (item.unitPrice * item.quantity);
       }, 0);
@@ -63,21 +63,23 @@ export class CreateOrder {
       const orderData = {
         user_id: data.userId,
         total_amount: total,
+        total: total,
         subtotal: subtotal,
         tax: tax,
         status: Order.STATUS.PENDING,
-        shipping_address: data.shippingAddress || null,
-        billing_address: data.billingAddress || null,
         payment_method: data.paymentMethod || null,
+        shipping_address: data.shippingAddress || {},
+        billing_address: data.billingAddress || {},
         payment_meta: data.paymentMeta || {},
         notes: data.notes || null,
         items: data.items.map(item => ({
           product_id: item.productId,
-          sku: item.sku || '',
-          title: item.title,
-          unit_price: item.unitPrice,
-          quantity: item.quantity,
-          subtotal: item.unitPrice * item.quantity
+          sku: item.sku || null,
+          title: item.title || null,
+          unit_price: item.unitPrice || 0,
+          price: item.unitPrice || 0,
+          quantity: item.quantity || 1,
+          subtotal: (item.unitPrice || 0) * (item.quantity || 1)
         }))
       };
 

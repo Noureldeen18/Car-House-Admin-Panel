@@ -455,6 +455,13 @@ const OfflineManager = {
   queue: [],
   
   init() {
+    // Load persisted queue from localStorage
+    try {
+      this.queue = JSON.parse(localStorage.getItem('offline-queue') || '[]');
+    } catch (e) {
+      this.queue = [];
+    }
+
     window.addEventListener('online', () => {
       this.isOnline = true;
       showToast('Connection restored', 'success');
@@ -474,27 +481,70 @@ const OfflineManager = {
     }
   },
   
-  addToQueue(operation) {
+  /**
+   * Add a serializable operation descriptor to the offline queue.
+   * @param {Object} descriptor - { action: string, entity: string, id?: string, data?: Object }
+   *   action: 'create' | 'update' | 'delete'
+   *   entity: 'product' | 'category' | 'order' | 'booking' | 'serviceType' | 'user'
+   *   id: entity ID (for update/delete)
+   *   data: entity data (for create/update)
+   */
+  addToQueue(descriptor) {
     this.queue.push({
-      operation,
+      ...descriptor,
       timestamp: Date.now()
     });
     localStorage.setItem('offline-queue', JSON.stringify(this.queue));
   },
   
+  /**
+   * Map a queued descriptor back to an actual DatabaseService call.
+   */
+  _resolveOperation(item) {
+    const methodMap = {
+      'create-product': () => DatabaseService.createProduct(item.data),
+      'update-product': () => DatabaseService.updateProduct(item.id, item.data),
+      'delete-product': () => DatabaseService.deleteProduct(item.id),
+      'create-category': () => DatabaseService.createCategory(item.data),
+      'update-category': () => DatabaseService.updateCategory(item.id, item.data),
+      'delete-category': () => DatabaseService.deleteCategory(item.id),
+      'create-order': () => DatabaseService.createOrder(item.data),
+      'delete-order': () => DatabaseService.deleteOrder(item.id),
+      'create-booking': () => DatabaseService.createBooking(item.data),
+      'update-booking': () => DatabaseService.updateBooking(item.id, item.data),
+      'delete-booking': () => DatabaseService.deleteBooking(item.id),
+      'create-serviceType': () => DatabaseService.createServiceType(item.data),
+      'update-serviceType': () => DatabaseService.updateServiceType(item.id, item.data),
+      'delete-serviceType': () => DatabaseService.deleteServiceType(item.id),
+      'update-user': () => DatabaseService.updateProfile(item.id, item.data),
+    };
+    const key = `${item.action}-${item.entity}`;
+    return methodMap[key] || null;
+  },
+
   async processQueue() {
-    const queue = JSON.parse(localStorage.getItem('offline-queue') || '[]');
+    const queue = [...this.queue];
+    let processed = 0;
     
     for (const item of queue) {
       try {
-        await item.operation();
+        const operation = this._resolveOperation(item);
+        if (operation) {
+          await operation();
+          processed++;
+        } else {
+          console.warn('Unknown queued operation:', item);
+        }
       } catch (error) {
-        console.error('Failed to process queued operation:', error);
+        console.error('Failed to process queued operation:', error, item);
       }
     }
     
     this.queue = [];
     localStorage.removeItem('offline-queue');
+    if (processed > 0) {
+      showToast(`Synced ${processed} offline change(s)`, 'success');
+    }
   }
 };
 
@@ -1460,7 +1510,7 @@ function attachProductHandlers() {
           if (imageUrl) {
             await DatabaseService.addProductImage(productId, {
               url: imageUrl,
-              alt: data.title,
+              alt: data.name,
               position: 0
             });
           }
@@ -2195,6 +2245,7 @@ async function renderOrdersPage() {
     const orderData = {
       user_id: customerId,
       total_amount: totalAmount,
+      total: totalAmount,
       subtotal: subtotal,
       tax: tax,
       payment_method: document.getElementById('order-payment-method')?.value || 'cash',
@@ -2205,7 +2256,9 @@ async function renderOrdersPage() {
         sku: item.sku,
         title: item.name,
         unit_price: item.price,
-        quantity: item.quantity
+        price: item.price,
+        quantity: item.quantity,
+        subtotal: item.price * item.quantity
       }))
     };
     

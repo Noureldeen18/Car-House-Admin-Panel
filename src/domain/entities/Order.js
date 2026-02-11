@@ -8,7 +8,8 @@ export class Order {
     PROCESSING: 'processing',
     SHIPPED: 'shipped',
     DELIVERED: 'delivered',
-    CANCELLED: 'cancelled'
+    CANCELLED: 'cancelled',
+    REFUNDED: 'refunded'
   };
 
   constructor({
@@ -16,6 +17,17 @@ export class Order {
     userId,
     status = Order.STATUS.PENDING,
     total,
+    subtotal = null,
+    tax = null,
+    shippingCost = 0,
+    discountAmount = 0,
+    paymentStatus = 'pending',
+    paymentMethod = null,
+    shippingAddress = null,
+    billingAddress = null,
+    paymentMeta = {},
+    notes = null,
+    trackingNumber = null,
     items = [],
     profile = null,
     createdAt = null,
@@ -25,6 +37,17 @@ export class Order {
     this.userId = userId;
     this.status = status;
     this.total = total;
+    this.subtotal = subtotal;
+    this.tax = tax;
+    this.shippingCost = shippingCost;
+    this.discountAmount = discountAmount;
+    this.paymentStatus = paymentStatus;
+    this.paymentMethod = paymentMethod;
+    this.shippingAddress = shippingAddress;
+    this.billingAddress = billingAddress;
+    this.paymentMeta = paymentMeta;
+    this.notes = notes;
+    this.trackingNumber = trackingNumber;
     this.items = items;
     this.profile = profile;
     this.createdAt = createdAt;
@@ -113,7 +136,19 @@ export class Order {
       id: this.id,
       user_id: this.userId,
       status: this.status,
-      total_amount: this.total
+      total_amount: this.total,
+      total: this.total,
+      subtotal: this.subtotal,
+      tax: this.tax,
+      shipping_cost: this.shippingCost,
+      discount_amount: this.discountAmount,
+      payment_status: this.paymentStatus,
+      payment_method: this.paymentMethod,
+      shipping_address: this.shippingAddress,
+      billing_address: this.billingAddress,
+      payment_meta: this.paymentMeta,
+      notes: this.notes,
+      tracking_number: this.trackingNumber
     };
   }
 
@@ -128,6 +163,17 @@ export class Order {
       userId: data.user_id,
       status: data.status,
       total: data.total || data.total_amount,
+      subtotal: data.subtotal,
+      tax: data.tax,
+      shippingCost: data.shipping_cost || 0,
+      discountAmount: data.discount_amount || 0,
+      paymentStatus: data.payment_status,
+      paymentMethod: data.payment_method,
+      shippingAddress: data.shipping_address,
+      billingAddress: data.billing_address,
+      paymentMeta: data.payment_meta || {},
+      notes: data.notes,
+      trackingNumber: data.tracking_number,
       items: data.items || [],
       profile: data.profile || data.user,
       createdAt: data.created_at,

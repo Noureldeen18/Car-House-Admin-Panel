@@ -14,7 +14,10 @@ export class User {
     email,
     fullName,
     phone = '',
+    avatarUrl = null,
     role = User.ROLES.CUSTOMER,
+    blocked = false,
+    meta = {},
     createdAt = null,
     updatedAt = null
   }) {
@@ -22,7 +25,10 @@ export class User {
     this.email = email;
     this.fullName = fullName;
     this.phone = phone;
+    this.avatarUrl = avatarUrl;
     this.role = role;
+    this.blocked = blocked;
+    this.meta = meta;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
   }
@@ -82,7 +88,10 @@ export class User {
       email: this.email,
       full_name: this.fullName,
       phone: this.phone,
-      role: this.role
+      avatar_url: this.avatarUrl,
+      role: this.role,
+      blocked: this.blocked,
+      meta: this.meta
     };
   }
 
@@ -97,7 +106,10 @@ export class User {
       email: data.email,
       fullName: data.full_name,
       phone: data.phone || '',
+      avatarUrl: data.avatar_url || null,
       role: data.role || User.ROLES.CUSTOMER,
+      blocked: data.blocked || false,
+      meta: data.meta || {},
       createdAt: data.created_at,
       updatedAt: data.updated_at
     });

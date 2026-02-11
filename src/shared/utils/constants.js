@@ -24,14 +24,16 @@ export const ORDER_STATUS = {
   PROCESSING: 'processing',
   SHIPPED: 'shipped',
   DELIVERED: 'delivered',
-  CANCELLED: 'cancelled'
+  CANCELLED: 'cancelled',
+  REFUNDED: 'refunded'
 };
 
 // Booking status values
 export const BOOKING_STATUS = {
   SCHEDULED: 'scheduled',
   PENDING: 'pending',
-  IN_PROGRESS: 'in_progress',
+  ARRIVED: 'arrived',
+  IN_PROGRESS: 'in-progress',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled'
 };
